@@ -1,133 +1,52 @@
-# 🚀 Crypto Project
+# BinanceSim Frontend
 
-A modern cryptocurrency-based application designed to [briefly describe your purpose — e.g., track prices, enable transactions, or build a blockchain solution].
+BinanceSim is a premium crypto exchange simulation platform built with a dark institutional aesthetic.
 
----
+## 🚀 Tech Stack
 
-## 📌 Features
+- **Framework:** React 18 + Vite
+- **Styling:** Tailwind CSS (Dark Gold Theme)
+- **State Management:** Zustand
+- **Market Data:** WebSocket Live Prices (Binance API)
+- **Charts:** Lightweight Charts & Recharts
+- **Payments:** Razorpay (Test Mode Integration)
 
-* 🔐 Secure authentication
-* 💰 Real-time crypto price tracking
-* 📊 Interactive charts and analytics
-* 🔄 Fast and reliable transactions
-* 🌐 API integration (e.g., CoinGecko / Binance)
-* 📱 Responsive design
+## 🛠️ Features
 
----
+- **Institutional Design:** Deep olive-black & gold aesthetic for a premium trading feel.
+- **Live Trading Room:** Real-time candlestick charts and order execution.
+- **Multi-Wallet System:** Manage INR and multiple crypto assets.
+- **KYC Protocol:** Multi-step identity verification simulation.
+- **Virtual E-Card:** Styled 3D virtual card for simulated offline spend.
+- **Leaderboard:** Global ROI-based ranking system.
 
-## 🛠️ Tech Stack
+## ⚙️ Internal Setup
 
-* **Frontend:** [React / Vue / HTML-CSS-JS]
-* **Backend:** [Node.js / Django / Flask]
-* **Database:** [MongoDB / PostgreSQL]
-* **Blockchain:** [Ethereum / Solidity / Web3.js]
-* **APIs:** [Crypto APIs you used]
+1. **Install Dependencies:**
+   ```bash
+   npm install
+   ```
 
----
+2. **Environment Configuration:**
+   Create a `.env` file from the metadata provided.
+   ```env
+   VITE_API_URL=http://localhost:8080/api/v1
+   VITE_WS_URL=ws://localhost:8080/ws/prices
+   VITE_RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxxxxxxx
+   ```
 
-## 📂 Project Structure
+3. **Run Development Server:**
+   ```bash
+   npm run dev
+   ```
 
-```
-crypto-project/
-│── client/        # Frontend code
-│── server/        # Backend code
-│── contracts/     # Smart contracts (if any)
-│── docs/          # Documentation
-│── .env           # Environment variables
-│── package.json
-│── README.md
-```
+## 📂 Architecture
 
----
-
-## ⚙️ Installation
-
-1. Clone the repository:
-
-```
-git clone https://github.com/your-username/crypto-project.git
-```
-
-2. Navigate to the project:
-
-```
-cd crypto-project
-```
-
-3. Install dependencies:
-
-```
-npm install
-```
-
-4. Run the development server:
-
-```
-npm run dev
-```
+The project follows a modular structure separated by feature:
+- `src/services/api.js`: Centralized Axios instance with interceptors.
+- `src/store/authStore.js`: Persistent auth state with Zustand.
+- `src/hooks/usePriceWebSocket.js`: Real-time price stream management.
+- `src/pages/*`: Dedicated folders for each major feature module.
 
 ---
-
-## 🔑 Environment Variables
-
-Create a `.env` file and add:
-
-```
-API_KEY=your_api_key
-SECRET_KEY=your_secret
-DATABASE_URL=your_database_url
-```
-
----
-
-## 🚀 Usage
-
-* Open `http://localhost:3000` in your browser
-* Sign up / log in
-* Start exploring crypto features
-
----
-
-## 🧪 Testing
-
-Run tests using:
-
-```
-npm test
-```
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome!
-
-1. Fork the repo
-2. Create a new branch (`feature/your-feature`)
-3. Commit your changes
-4. Push and open a Pull Request
-
----
-
-## 🐛 Issues
-
-If you find bugs, please open an issue in the repository.
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
----
-
-## 👨‍💻 Author
-
-* Your Name
-* GitHub: https://github.com/your-username
-
----
-
-## ⭐ Support
-
-If you like this project, give it a ⭐ on GitHub!
+*Internal Confidential Document • BinanceSim v1.0.0*
