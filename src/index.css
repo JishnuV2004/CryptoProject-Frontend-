@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-brand-bg text-gray-200 font-body antialiased;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #050505; }
+::-webkit-scrollbar-thumb { background: #222222; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #E5B84255; }
+
+/* Price flash classes */
+.flash-up   { animation: flash-up 0.5s ease; }
+.flash-down { animation: flash-down 0.5s ease; }
+
+/* Gold glow on focus */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #E5B842 !important;
+  box-shadow: 0 0 0 2px #E5B84222;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
