@@ -16,8 +16,31 @@ export default function LoginPage() {
         setLoading(true)
         try {
             const res = await authAPI.login(form)
-            setAuth(res.data.user, res.data.token)
-            navigate('/market')
+            
+            if (!res.success) {
+                throw new Error(res.message || res.error || 'Login failed')
+            }
+
+            // Map backend keys to frontend expectations
+            const backendUser = res.data;
+            const user = {
+                id: backendUser.ID,
+                full_name: backendUser.Name,
+                email: backendUser.Email,
+                role: backendUser.Role?.toLowerCase() || 'user',
+                kyc_status: backendUser.KYCStatus ? 'verified' : 'pending',
+                created_at: backendUser.created_at
+            };
+
+            // Provide a dummy token if the backend uses cookies/sessions and doesn't return a JWT
+            setAuth(user, 'session-active')
+            
+            if (user.role === 'admin') {
+                navigate('/admin')
+            } else {
+                navigate('/market')
+            }
+            
             toast.success('Welcome back!')
         } catch (err) {
             toast.error(err || 'Login failed')

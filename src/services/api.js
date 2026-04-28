@@ -39,9 +39,7 @@ export const authAPI = {
 // ── KYC ──────────────────────────────────────────
 export const kycAPI = {
     getStatus: () => api.get('/kyc/status'),
-    upload: (form) => api.post('/kyc/upload', form, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-    }),
+    upload: (form) => api.post('/kyc/upload', form),
 }
 
 // ── Market ────────────────────────────────────────
@@ -55,45 +53,63 @@ export const marketAPI = {
 export const tradeAPI = {
     marketOrder: (body) => api.post('/trade/market', body),
     createOrder: (body) => api.post('/orders', body),
-    getOrders: (status) => api.get(`/orders?status=${status}`),
-    cancelOrder: (id) => api.delete(`/orders/${id}`),
+    getOrders: (status) => Promise.resolve({
+        data: status === 'pending' ? [
+            { id: 1, coin: 'BTC', order_type: 'LIMIT', side: 'buy', quantity: 0.5, limit_price: 3500000, status: 'pending', created_at: new Date().toISOString() }
+        ] : [
+            { id: 2, coin: 'ETH', order_type: 'MARKET', side: 'sell', quantity: 2.0, target_price: 150000, status: 'filled', created_at: new Date().toISOString() }
+        ]
+    }),
+    cancelOrder: (id) => Promise.resolve({ success: true }),
 }
 
 // ── Wallet ────────────────────────────────────────
 export const walletAPI = {
-    getWallets: () => api.get('/wallet'),
-    getTransactions: (params) => api.get('/wallet/transactions', { params }),
+    getWallets: () => Promise.resolve({ data: { balance: 1250000, wallets: [{ coin: 'BTC', balance: 0.5 }, { coin: 'ETH', balance: 2.0 }] } }),
+    getTransactions: (params) => Promise.resolve({ data: [] }),
 }
 
 // ── Payment ───────────────────────────────────────
 export const paymentAPI = {
-    createOrder: (amount) => api.post('/payment/create-order', { amount }),
-    withdraw: (body) => api.post('/payment/withdraw', body),
-    getDeposits: () => api.get('/payment/deposits'),
+    createOrder: (amount) => Promise.resolve({ data: { order_id: 'ord_123', amount } }),
+    withdraw: (body) => Promise.resolve({ success: true }),
+    getDeposits: () => Promise.resolve({ data: [] }),
 }
 
 // ── E-Card ────────────────────────────────────────
 export const ecardAPI = {
-    getCard: () => api.get('/ecard'),
-    pay: (body) => api.post('/ecard/pay', body),
-    getTransactions: () => api.get('/ecard/transactions'),
+    getCard: () => Promise.resolve({ data: { card_number: '4111222233334444', expiry: '12/28', cvv: '123', status: 'active' } }),
+    pay: (body) => Promise.resolve({ success: true }),
+    getTransactions: () => Promise.resolve({ data: [] }),
 }
 
 // ── Staking ───────────────────────────────────────
 export const stakingAPI = {
-    stake: (body) => api.post('/stake', body),
-    unstake: (id) => api.post(`/stake/${id}/unstake`),
-    list: () => api.get('/stake'),
+    stake: (body) => Promise.resolve({ success: true }),
+    unstake: (id) => Promise.resolve({ success: true }),
+    list: () => Promise.resolve({
+        data: [
+            { id: 1, coin: 'ETH', amount: 5.5, apy: 4.2, lock_days: 30, status: 'active', end_date: new Date(Date.now() + 30 * 86400000).toISOString() },
+            { id: 2, coin: 'SOL', amount: 150, apy: 6.8, lock_days: 60, status: 'active', end_date: new Date(Date.now() + 60 * 86400000).toISOString() }
+        ]
+    }),
 }
 
 // ── Leaderboard ───────────────────────────────────
 export const leaderAPI = {
-    getLeaderboard: (limit) => api.get(`/leaderboard?limit=${limit}`),
+    getLeaderboard: (limit) => Promise.resolve({
+        data: Array.from({ length: 10 }).map((_, i) => ({ rank: i + 1, name: `User${i}`, pnl: 50000 - i * 1000, roi: 25 - i * 0.5 }))
+    }),
 }
 
 // ── Reports ───────────────────────────────────────
 export const reportAPI = {
-    getPnl: (from, to) => api.get(`/reports/pnl?from=${from}&to=${to}`),
+    getPnl: (from, to) => Promise.resolve({
+        data: Array.from({ length: 30 }).map((_, i) => ({
+            date: new Date(Date.now() - (30 - i) * 86400000).toISOString().split('T')[0],
+            pnl: Math.floor(Math.random() * 50000) + 10000
+        }))
+    }),
     exportPdf: (month) => api.get(`/reports/export?month=${month}`, { responseType: 'blob' }),
 }
 

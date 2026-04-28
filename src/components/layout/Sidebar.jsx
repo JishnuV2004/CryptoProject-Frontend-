@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 
-const NAV = [
+const USER_NAV = [
     { to: '/market', icon: '◈', label: 'Markets' },
     { to: '/trade/BTCUSDT', icon: '⟁', label: 'Trade' },
     { to: '/wallet', icon: '◎', label: 'Wallet' },
@@ -12,9 +12,19 @@ const NAV = [
     { to: '/reports', icon: '◧', label: 'Reports' },
 ]
 
+const ADMIN_NAV = [
+    { to: '/admin', icon: '⊞', label: 'Dashboard' },
+    { to: '/admin/users', icon: '👥', label: 'Users' },
+    { to: '/admin/kyc', icon: '🛡️', label: 'KYC' },
+    { to: '/admin/wallets', icon: '💼', label: 'Wallets' },
+    { to: '/admin/config', icon: '⚙️', label: 'Settings' },
+]
+
 export default function Sidebar() {
     const [collapsed, setCollapsed] = useState(false)
     const { user, logout } = useAuthStore()
+
+    const navLinks = user?.role === 'admin' ? ADMIN_NAV : USER_NAV
 
     return (
         <aside className={`
@@ -25,30 +35,54 @@ export default function Sidebar() {
             {/* Logo */}
             <div className="flex items-center gap-3 px-4 py-5 border-b border-brand-border h-[64px]">
                 <div className="w-8 h-8 rounded-lg bg-gold-gradient flex items-center justify-center shadow-gold-sm">
-                    <span className="text-brand-bg font-display text-xl tracking-wider">BS</span>
+                    <span className="text-brand-bg font-display text-xl tracking-wider">CN</span>
                 </div>
                 {!collapsed && (
                     <span className="text-brand-gold font-display text-lg tracking-widest truncate">
-                        BINANCESIM
+                        CRYTINOX
                     </span>
                 )}
             </div>
 
             {/* Nav Links */}
-            <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto no-scrollbar">
-                {NAV.map(({ to, icon, label }) => (
-                    <NavLink key={to} to={to} className={({ isActive }) => `
+            <nav className="flex-1 py-4 px-2 overflow-y-auto no-scrollbar">
+                {user?.role === 'admin' && (
+                    <div className="mb-6 space-y-1">
+                        {!collapsed && <div className="px-3 py-1 mb-2 text-[9px] font-bold text-muted uppercase tracking-widest">Admin Controls</div>}
+                        {ADMIN_NAV.map(({ to, icon, label }) => (
+                            <NavLink key={to} to={to} end className={({ isActive }) => `
+                flex items-center gap-3 px-3 py-2.5 rounded-lg
+                font-body text-sm transition-all duration-200
+                ${isActive
+                                    ? 'bg-brand-gold/10 text-brand-gold border-l-2 border-brand-gold shadow-gold-sm'
+                                    : 'text-muted hover:text-white hover:bg-brand-panel'
+                                }
+              `}>
+                                <span className="text-lg">{icon}</span>
+                                {!collapsed && <span className="truncate">{label}</span>}
+                            </NavLink>
+                        ))}
+                    </div>
+                )}
+
+                <div className="space-y-1">
+                    {user?.role === 'admin' && !collapsed && (
+                        <div className="px-3 py-1 mb-2 mt-2 border-t border-brand-border/50 pt-4 text-[9px] font-bold text-muted uppercase tracking-widest">User Views</div>
+                    )}
+                    {USER_NAV.map(({ to, icon, label }) => (
+                        <NavLink key={to} to={to} end className={({ isActive }) => `
             flex items-center gap-3 px-3 py-2.5 rounded-lg
             font-body text-sm transition-all duration-200
             ${isActive
-                            ? 'bg-brand-gold/10 text-brand-gold border-l-2 border-brand-gold shadow-gold-sm'
-                            : 'text-muted hover:text-white hover:bg-brand-panel'
-                        }
+                                ? 'bg-brand-gold/10 text-brand-gold border-l-2 border-brand-gold shadow-gold-sm'
+                                : 'text-muted hover:text-white hover:bg-brand-panel'
+                            }
           `}>
-                        <span className="text-lg">{icon}</span>
-                        {!collapsed && <span className="truncate">{label}</span>}
-                    </NavLink>
-                ))}
+                            <span className="text-lg">{icon}</span>
+                            {!collapsed && <span className="truncate">{label}</span>}
+                        </NavLink>
+                    ))}
+                </div>
             </nav>
 
             {/* Bottom — User + Logout */}

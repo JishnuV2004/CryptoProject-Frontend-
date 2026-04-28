@@ -9,6 +9,7 @@ const KYC_STYLE = {
 
 export default function TopBar() {
     const user = useAuthStore((s) => s.user)
+    const { theme, toggleTheme } = useAuthStore()
 
     return (
         <header className="flex items-center justify-between px-6 py-3 h-[64px]
@@ -27,10 +28,14 @@ export default function TopBar() {
 
                 {/* Global Search Hook could go here */}
 
-                {/* Notification Bell */}
-                <button className="relative p-2 rounded-lg hover:bg-brand-panel transition-all text-muted hover:text-brand-gold">
-                    <span className="text-xl">◐</span>
-                    <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-brand-gold rounded-full" />
+                {/* Theme Toggle Button */}
+                <button 
+                    onClick={toggleTheme}
+                    className="relative p-2 rounded-lg hover:bg-brand-panel transition-all text-muted hover:text-brand-gold"
+                    title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+                >
+                    <span className="text-xl">{theme === 'dark' ? '◑' : '◐'}</span>
+                    {/* <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-brand-gold rounded-full" /> */}
                 </button>
 
                 {/* Avatar */}
