@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './store/authStore'
@@ -12,10 +13,15 @@ import ECardPage from './pages/ecard/ECardPage'
 import StakingPage from './pages/staking/StakingPage'
 import LeaderboardPage from './pages/leaderboard/LeaderboardPage'
 import ReportsPage from './pages/reports/ReportsPage'
-import AdminPage from './pages/admin/AdminPage'
-
 import HomePage from './pages/home/HomePage'
 import ServiceDetailPage from './pages/services/ServiceDetailPage'
+
+// New Admin Pages
+import AdminDashboard from './pages/admin/AdminDashboard'
+import AdminUsers from './pages/admin/AdminUsers'
+import AdminKyc from './pages/admin/AdminKyc'
+import AdminWallets from './pages/admin/AdminWallets'
+import AdminConfig from './pages/admin/AdminConfig'
 
 function AuthGuard({ children }) {
     const token = useAuthStore((s) => s.token)
@@ -28,18 +34,23 @@ function AdminGuard({ children }) {
 }
 
 export default function App() {
+    const theme = useAuthStore((s) => s.theme)
+
+    useEffect(() => {
+        if (theme === 'light') {
+            document.body.classList.add('theme-light')
+        } else {
+            document.body.classList.remove('theme-light')
+        }
+    }, [theme])
+
     return (
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Toaster
                 position="top-right"
                 toastOptions={{
-                    style: {
-                        background: '#181A0E',
-                        color: '#E8E8D8',
-                        border: '1px solid #2A2D1A',
-                        fontFamily: 'DM Sans, sans-serif',
-                    },
-                    success: { iconTheme: { primary: '#C9A84C', secondary: '#0A0B06' } },
+                    className: 'bg-brand-panel text-white border border-brand-border text-sm font-mono',
+                    style: { background: '#111111', color: '#fff', borderColor: '#222222' }
                 }}
             />
             <Routes>
@@ -53,14 +64,21 @@ export default function App() {
                     <Route path="/market" element={<MarketPage />} />
 
                     {/* Protected Routes */}
-                    <Route path="/kyc" element={<KycPage />} />
-                    <Route path="/trade/:symbol" element={<AuthGuard><TradePage /></AuthGuard>} />
-                    <Route path="/wallet" element={<AuthGuard><WalletPage /></AuthGuard>} />
-                    <Route path="/ecard" element={<AuthGuard><ECardPage /></AuthGuard>} />
-                    <Route path="/staking" element={<AuthGuard><StakingPage /></AuthGuard>} />
-                    <Route path="/leaderboard" element={<AuthGuard><LeaderboardPage /></AuthGuard>} />
-                    <Route path="/reports" element={<AuthGuard><ReportsPage /></AuthGuard>} />
-                    <Route path="/admin" element={<AuthGuard><AdminGuard><AdminPage /></AdminGuard></AuthGuard>} />
+                    <Route path="/kyc" element={<AuthGuard><KycPage /></AuthGuard>} />
+                    <Route path="/trade/:symbol" element={<TradePage />} />
+                    <Route path="/wallet" element={<WalletPage />} />
+                    <Route path="/ecard" element={<ECardPage />} />
+                    <Route path="/staking" element={<StakingPage />} />
+                    <Route path="/leaderboard" element={<LeaderboardPage />} />
+                    <Route path="/reports" element={<ReportsPage />} />
+                    
+                    {/* Admin Routes */}
+                    <Route path="/admin" element={<AdminDashboard />} />
+                    {/* <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} /> */}
+                    <Route path="/admin/users" element={<AdminGuard><AdminUsers /></AdminGuard>} />
+                    <Route path="/admin/kyc" element={<AdminGuard><AdminKyc /></AdminGuard>} />
+                    <Route path="/admin/wallets" element={<AdminWallets />} />
+                    <Route path="/admin/config" element={<AdminConfig />} />
                 </Route>
             </Routes>
         </BrowserRouter>

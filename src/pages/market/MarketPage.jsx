@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { marketAPI } from '../../services/api'
 import { usePriceWebSocket } from '../../hooks/usePriceWebSocket'
 import { formatINR, formatChange, changeClass } from '../../utils/format'
 
@@ -10,26 +8,28 @@ const COINS = [
     { symbol: 'ETHUSDT', name: 'Ethereum', abbr: 'ETH', icon: 'Ξ' },
     { symbol: 'SOLUSDT', name: 'Solana', abbr: 'SOL', icon: '◎' },
     { symbol: 'BNBUSDT', name: 'BNB', abbr: 'BNB', icon: 'B' },
+    { symbol: 'XRPUSDT', name: 'Ripple', abbr: 'XRP', icon: '✕' },
+    { symbol: 'ADAUSDT', name: 'Cardano', abbr: 'ADA', icon: '₳' },
+    { symbol: 'DOGEUSDT', name: 'Dogecoin', abbr: 'DOGE', icon: 'Ð' },
+    { symbol: 'DOTUSDT', name: 'Polkadot', abbr: 'DOT', icon: '●' },
+    { symbol: 'MATICUSDT', name: 'Polygon', abbr: 'MATIC', icon: '⬡' },
+    { symbol: 'LINKUSDT', name: 'Chainlink', abbr: 'LINK', icon: '🔗' },
 ]
 
 export default function MarketPage() {
-    const [market, setMarket] = useState([])
-    const { prices, flashes } = usePriceWebSocket()
+    const { prices, stats, flashes } = usePriceWebSocket()
     const navigate = useNavigate()
 
-    useEffect(() => {
-        marketAPI.getPrices().then((res) => setMarket(res.data || [])).catch(() => { })
-    }, [])
-
-    // Merge live WS prices into market data
+    // Live WS prices and stats
     const rows = COINS.map((coin) => {
-        const base = market.find((m) => m.symbol === coin.symbol) || {}
+        const coinStats = stats[coin.symbol] || {}
+        
         return {
             ...coin,
-            price: prices[coin.symbol] ?? base.price ?? 0,
-            change24h: base.change_24h ?? 0,
-            high24h: base.high_24h ?? 0,
-            low24h: base.low_24h ?? 0,
+            price: prices[coin.symbol] ?? 0,
+            change24h: coinStats.change24h ?? 0,
+            high24h: coinStats.high24h ?? 0,
+            low24h: coinStats.low24h ?? 0,
             flash: flashes[coin.symbol] ?? null,
         }
     })

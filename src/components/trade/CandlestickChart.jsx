@@ -39,16 +39,60 @@ export default function CandlestickChart({ symbol }) {
 
     // Load data when symbol or interval changes
     useEffect(() => {
-        marketAPI.getKlines(symbol, interval, 100).then((res) => {
-            const mapped = (res.data || []).map((k) => ({
-                time: k[0] / 1000,
-                open: parseFloat(k[1]) * 84,
-                high: parseFloat(k[2]) * 84,
-                low: parseFloat(k[3]) * 84,
-                close: parseFloat(k[4]) * 84,
-            }))
-            seriesRef.current?.setData(mapped)
-        }).catch(() => { })
+        let isMounted = true;
+        let ws;
+
+        // 1. Fetch historical Klines directly from Binance REST API
+        fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=100`)
+            .then(res => res.json())
+            .then(data => {
+                if (!isMounted) return;
+
+                const mapped = data.map((k) => ({
+                    time: k[0] / 1000,
+                    open: parseFloat(k[1]) * 84,
+                    high: parseFloat(k[2]) * 84,
+                    low: parseFloat(k[3]) * 84,
+                    close: parseFloat(k[4]) * 84,
+                }))
+                
+                try {
+                    seriesRef.current?.setData(mapped)
+                } catch (e) {
+                    console.warn("Chart data set error:", e)
+                }
+
+                // 2. Connect to live Binance Kline stream for real-time candle updates
+                ws = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_${interval}`)
+                ws.onmessage = (e) => {
+                    if (!isMounted) return;
+                    
+                    const message = JSON.parse(e.data)
+                    const k = message.k
+                    if (k) {
+                        try {
+                            seriesRef.current?.update({
+                                time: k.t / 1000,
+                                open: parseFloat(k.o) * 84,
+                                high: parseFloat(k.h) * 84,
+                                low: parseFloat(k.l) * 84,
+                                close: parseFloat(k.c) * 84,
+                            })
+                        } catch (err) {
+                            // Lightweight Charts throws an error if a websocket tick is older than the latest candle.
+                            // We can safely ignore these stale out-of-order ticks.
+                        }
+                    }
+                }
+            })
+            .catch((err) => {
+                if (isMounted) console.error("Failed to load chart data:", err)
+            })
+
+        return () => {
+            isMounted = false;
+            if (ws) ws.close();
+        }
     }, [symbol, interval])
 
     return (

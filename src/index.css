@@ -3,8 +3,36 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* DEFAULT DARK THEME */
+    --color-bg: #050505;
+    --color-surface: #0A0A0A;
+    --color-panel: #111111;
+    --color-border: #222222;
+    --color-white: #FFFFFF;
+    --color-black: #000000;
+    --color-muted: #8A8A8A;
+    --color-dim: #474747;
+    --surface-gradient: linear-gradient(180deg, #111111 0%, #050505 100%);
+  }
+
+  .theme-light {
+    /* LIGHT THEME */
+    --color-bg: #F9FAFB;
+    --color-surface: #FFFFFF;
+    --color-panel: #F3F4F6;
+    --color-border: #E5E7EB;
+    --color-white: #111827; /* Inverted white (dark text) */
+    --color-black: #FFFFFF; /* Inverted black (white bg/text) */
+    --color-muted: #6B7280;
+    --color-dim: #9CA3AF;
+    --surface-gradient: linear-gradient(180deg, #F3F4F6 0%, #F9FAFB 100%);
+  }
+
   body {
-    @apply bg-brand-bg text-gray-200 font-body antialiased;
+    background-color: var(--color-bg);
+    color: var(--color-white);
+    @apply font-body antialiased transition-colors duration-300;
   }
 }
 

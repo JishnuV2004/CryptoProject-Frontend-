@@ -8,16 +8,18 @@ export default {
                     gold: '#E5B842',   // Vivid gold accent
                     'gold-lt': '#F2CD6A',
                     'gold-dk': '#A88427',
-                    bg: '#050505',   // Deep black background
-                    surface: '#0A0A0A', // Dark gray card background
-                    panel: '#111111',   // slightly elevated panel
-                    border: '#222222',  // subtle border
+                    bg: 'var(--color-bg)',   // Dynamic background
+                    surface: 'var(--color-surface)', // Dynamic card background
+                    panel: 'var(--color-panel)',   // Dynamic elevated panel
+                    border: 'var(--color-border)',  // Dynamic subtle border
                     'border-gold': '#E5B84233',
                 },
+                white: 'var(--color-white)', // Dynamic white
+                black: 'var(--color-black)', // Dynamic black
                 up: '#15B06D',   // green from the chart
                 down: '#FF4159',   // red from the chart
-                muted: '#8A8A8A',  // general muted text
-                dim: '#474747',
+                muted: 'var(--color-muted)',  // Dynamic muted text
+                dim: 'var(--color-dim)',      // Dynamic dim text
             },
             fontFamily: {
                 display: ['"Inter"', 'sans-serif'],
@@ -26,7 +28,7 @@ export default {
             },
             backgroundImage: {
                 'gold-gradient': 'linear-gradient(90deg, #E5B842, #E8CD83)',
-                'surface-gradient': 'linear-gradient(180deg, #111111 0%, #050505 100%)',
+                'surface-gradient': 'var(--surface-gradient)',
                 'glow-gold': 'radial-gradient(ellipse at center, #E5B84215 0%, transparent 70%)',
             },
             boxShadow: {
