@@ -72,7 +72,7 @@ export default function App() {
                     <Route path="/leaderboard" element={<LeaderboardPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
                     
-                    {/* Admin Routes */}
+                    {/* Admin Routes  */}
                     <Route path="/admin" element={<AdminDashboard />} />
                     {/* <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} /> */}
                     <Route path="/admin/users" element={<AdminGuard><AdminUsers /></AdminGuard>} />
