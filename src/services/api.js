@@ -25,7 +25,11 @@ api.interceptors.response.use(
             localStorage.removeItem('binancesim-auth')
             window.location.href = '/auth/login'
         }
-        return Promise.reject(err.response?.data?.error || 'Something went wrong')
+        
+        const data = err.response?.data
+        const errorMsg = data?.message || (typeof data?.error === 'string' ? data.error : 'Something went wrong')
+        
+        return Promise.reject(errorMsg)
     }
 )
 
@@ -34,12 +38,26 @@ export const authAPI = {
     login: (body) => api.post('/auth/login', body),
     register: (body) => api.post('/auth/register', body),
     logout: () => api.post('/auth/logout'),
+    sendOtp: (body) => api.post('/auth/sendotp', body),
+    verifyOtp: (body) => api.post('/auth/verifyotp', body),
+    forgotOtp: (body) => api.post('/auth/forgototp', body),
+    changePassword: (body) => api.post('/auth/changepassword', body),
+}
+
+// ── Profile ───────────────────────────────────────
+export const profileAPI = {
+    getProfile: () => api.get('/profile/getprofile'),
+    editProfile: (body) => api.post('/profile/editprofile', body),
+    changePassword: (body) => api.post('/profile/changepassword', body),
+    deleteAccount: () => api.post('/profile/deleteaccount'), // using POST for delete account as per typical implementation unless DELETE was explicitly specified in backend (user only gave URL)
 }
 
 // ── KYC ──────────────────────────────────────────
 export const kycAPI = {
     getStatus: () => api.get('/kyc/status'),
-    upload: (form) => api.post('/kyc/upload', form),
+    getMe: () => api.get('/kyc/me'),
+    submit: (form) => api.post('/kyc/submit', form, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    update: (form) => api.put('/kyc/update', form, { headers: { 'Content-Type': 'multipart/form-data' } }),
 }
 
 // ── Market ────────────────────────────────────────
@@ -78,7 +96,9 @@ export const paymentAPI = {
 
 // ── E-Card ────────────────────────────────────────
 export const ecardAPI = {
-    getCard: () => Promise.resolve({ data: { card_number: '4111222233334444', expiry: '12/28', cvv: '123', status: 'active' } }),
+    getCard: () => api.get('/ecard/me'),
+    block: () => api.post('/ecard/block'),
+    unblock: () => api.post('/ecard/unblock'),
     pay: (body) => Promise.resolve({ success: true }),
     getTransactions: () => Promise.resolve({ data: [] }),
 }
@@ -116,9 +136,12 @@ export const reportAPI = {
 // ── Admin ─────────────────────────────────────────
 export const adminAPI = {
     getKycQueue: () => api.get('/admin/kyc'),
+    getKycById: (id) => api.put(`/admin/kyc/${id}`),
     reviewKyc: (id, body) => api.put(`/admin/kyc/${id}`, body),
-    getUsers: () => api.get('/admin/users'),
-    freezeUser: (id, body) => api.put(`/admin/users/${id}/freeze`, body),
+    getUsers: () => api.get('/admin/getallusers'),
+    getUserById: (id) => api.get(`/admin/getbyid/${id}`),
+    editUserProfile: (id, body) => api.post(`/admin/editprofile/${id}`, body),
+    blockUnblockUser: (id) => api.post(`/admin/blockunblock/${id}`),
     adjustBalance: (id, body) => api.put(`/admin/users/${id}/balance`, body),
     getWithdrawals: () => api.get('/admin/withdrawals'),
     reviewWithdrawal: (id, body) => api.put(`/admin/withdrawals/${id}`, body),

@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './store/authStore'
 import AppLayout from './components/layout/AppLayout'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
 import KycPage from './pages/kyc/KycPage'
 import MarketPage from './pages/market/MarketPage'
 import TradePage from './pages/trade/TradePage'
@@ -15,6 +16,7 @@ import LeaderboardPage from './pages/leaderboard/LeaderboardPage'
 import ReportsPage from './pages/reports/ReportsPage'
 import HomePage from './pages/home/HomePage'
 import ServiceDetailPage from './pages/services/ServiceDetailPage'
+import ProfilePage from './pages/profile/ProfilePage'
 
 // New Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -25,7 +27,24 @@ import AdminConfig from './pages/admin/AdminConfig'
 
 function AuthGuard({ children }) {
     const token = useAuthStore((s) => s.token)
-    return token ? children : <Navigate to="/auth/login" replace />
+    const user = useAuthStore((s) => s.user)
+    const location = useLocation()
+
+    if (!token) {
+        return <Navigate to="/auth/login" state={{ from: location }} replace />
+    }
+
+    // Support flexible capitalization, string 'verified'/'approved'/'ok', and boolean true values
+    const kycStatus = String(user?.kyc_status || user?.KYCStatus || '').toLowerCase()
+    const isVerified = kycStatus === 'verified' || kycStatus === 'approved' || kycStatus === 'ok' || kycStatus === 'true' || user?.kyc_status === true || user?.KYCStatus === true
+    const isKycOrProfileRoute = location.pathname === '/kyc' || location.pathname === '/profile'
+
+    if (!isVerified && !isKycOrProfileRoute) {
+        // Render the KycPage inline inside the active container/path, displaying either onboarding or pending/rejected status inline!
+        return <KycPage />
+    }
+
+    return children
 }
 
 function AdminGuard({ children }) {
@@ -35,6 +54,7 @@ function AdminGuard({ children }) {
 
 export default function App() {
     const theme = useAuthStore((s) => s.theme)
+    const token = useAuthStore((s) => s.token)
 
     useEffect(() => {
         if (theme === 'light') {
@@ -43,6 +63,42 @@ export default function App() {
             document.body.classList.remove('theme-light')
         }
     }, [theme])
+
+    useEffect(() => {
+        if (token) {
+            // Background update of profile details to capture any admin status changes on load/navigation
+            import('./services/api').then(({ profileAPI }) => {
+                profileAPI.getProfile().then(res => {
+                    if (res.success && res.data) {
+                        const backendUser = res.data
+                        const currentStore = useAuthStore.getState()
+                        const existingUser = currentStore.user || {}
+                        
+                        // Parse status cleanly: can be boolean or string
+                        let mappedKycStatus = 'not_submitted'
+                        const rawStatus = backendUser.KYCStatus || backendUser.kyc_status
+                        if (rawStatus === true) {
+                            mappedKycStatus = 'verified'
+                        } else if (typeof rawStatus === 'string') {
+                            mappedKycStatus = rawStatus
+                        } else if (existingUser.kyc_status) {
+                            mappedKycStatus = existingUser.kyc_status
+                        }
+
+                        currentStore.updateUser({
+                            ...existingUser,
+                            ...backendUser,
+                            id: backendUser.ID || backendUser.id || existingUser.id,
+                            full_name: backendUser.Name || backendUser.full_name || existingUser.full_name || 'User',
+                            email: backendUser.Email || backendUser.email || existingUser.email,
+                            role: (backendUser.Role || backendUser.role || existingUser.role || 'user').toLowerCase(),
+                            kyc_status: mappedKycStatus
+                        })
+                    }
+                }).catch(err => console.error('Failed background sync of user profile status:', err))
+            })
+        }
+    }, [token])
 
     return (
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -58,27 +114,28 @@ export default function App() {
                 <Route path="/service/:id" element={<ServiceDetailPage />} />
                 <Route path="/auth/login" element={<LoginPage />} />
                 <Route path="/auth/register" element={<RegisterPage />} />
+                <Route path="/auth/forgot" element={<ForgotPasswordPage />} />
 
                 <Route element={<AppLayout />}>
                     {/* Publicly accessible within AppLayout */}
-                    <Route path="/market" element={<MarketPage />} />
+                    <Route path="/trade/:symbol" element={<TradePage />} />
 
                     {/* Protected Routes */}
+                    <Route path="/market" element={<AuthGuard><MarketPage /></AuthGuard>} />
+                    <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
                     <Route path="/kyc" element={<AuthGuard><KycPage /></AuthGuard>} />
-                    <Route path="/trade/:symbol" element={<TradePage />} />
-                    <Route path="/wallet" element={<WalletPage />} />
-                    <Route path="/ecard" element={<ECardPage />} />
-                    <Route path="/staking" element={<StakingPage />} />
-                    <Route path="/leaderboard" element={<LeaderboardPage />} />
-                    <Route path="/reports" element={<ReportsPage />} />
+                    <Route path="/wallet" element={<AuthGuard><WalletPage /></AuthGuard>} />
+                    <Route path="/ecard" element={<AuthGuard><ECardPage /></AuthGuard>} />
+                    <Route path="/staking" element={<AuthGuard><StakingPage /></AuthGuard>} />
+                    <Route path="/leaderboard" element={<AuthGuard><LeaderboardPage /></AuthGuard>} />
+                    <Route path="/reports" element={<AuthGuard><ReportsPage /></AuthGuard>} />
                     
                     {/* Admin Routes */}
-                    <Route path="/admin" element={<AdminDashboard />} />
-                    {/* <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} /> */}
+                    <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
                     <Route path="/admin/users" element={<AdminGuard><AdminUsers /></AdminGuard>} />
                     <Route path="/admin/kyc" element={<AdminGuard><AdminKyc /></AdminGuard>} />
-                    <Route path="/admin/wallets" element={<AdminWallets />} />
-                    <Route path="/admin/config" element={<AdminConfig />} />
+                    <Route path="/admin/wallets" element={<AdminGuard><AdminWallets /></AdminGuard>} />
+                    <Route path="/admin/config" element={<AdminGuard><AdminConfig /></AdminGuard>} />
                 </Route>
             </Routes>
         </BrowserRouter>

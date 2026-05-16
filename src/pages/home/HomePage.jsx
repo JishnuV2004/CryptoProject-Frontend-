@@ -1,285 +1,669 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
+
+const INITIAL_COINS = [
+    { id: 'btc', name: 'Bitcoin', symbol: 'BTC', price: 64250.40, change24h: 1.84, volume24h: '28.4B', category: 'hot', sparkline: [62100, 62400, 61800, 63000, 63500, 62900, 63800, 64100, 63900, 64250] },
+    { id: 'eth', name: 'Ethereum', symbol: 'ETH', price: 3450.25, change24h: -0.62, volume24h: '14.1B', category: 'hot', sparkline: [3550, 3510, 3480, 3490, 3460, 3440, 3420, 3460, 3430, 3450] },
+    { id: 'bnb', name: 'BNB', symbol: 'BNB', price: 582.10, change24h: 4.52, volume24h: '1.8B', category: 'hot', sparkline: [550, 555, 560, 558, 564, 570, 575, 572, 578, 582] },
+    { id: 'sol', name: 'Solana', symbol: 'SOL', price: 148.75, change24h: 12.35, volume24h: '3.9B', category: 'gainers', sparkline: [128, 131, 134, 132, 138, 140, 142, 145, 144, 148.75] },
+    { id: 'xrp', name: 'Ripple', symbol: 'XRP', price: 0.5210, change24h: -1.20, volume24h: '850M', category: 'hot', sparkline: [0.535, 0.531, 0.528, 0.529, 0.525, 0.524, 0.520, 0.522, 0.519, 0.521] },
+    { id: 'ada', name: 'Cardano', symbol: 'ADA', price: 0.4650, change24h: 2.15, volume24h: '410M', category: 'gainers', sparkline: [0.450, 0.452, 0.455, 0.451, 0.458, 0.460, 0.462, 0.461, 0.463, 0.465] },
+    { id: 'doge', name: 'Dogecoin', symbol: 'DOGE', price: 0.1450, change24h: -3.40, volume24h: '1.2B', category: 'gainers', sparkline: [0.155, 0.152, 0.150, 0.148, 0.149, 0.146, 0.143, 0.145, 0.142, 0.145] },
+    { id: 'crx', name: 'Crytinox Coin', symbol: 'CRX', price: 0.1500, change24h: 25.40, volume24h: '12.5M', category: 'new', sparkline: [0.110, 0.115, 0.120, 0.118, 0.125, 0.135, 0.140, 0.142, 0.145, 0.150] },
+    { id: 'near', name: 'NEAR Protocol', symbol: 'NEAR', price: 6.20, change24h: -2.10, volume24h: '280M', category: 'new', sparkline: [6.40, 6.35, 6.28, 6.30, 6.25, 6.22, 6.15, 6.18, 6.16, 6.20] },
+    { id: 'rndr', name: 'Render Token', symbol: 'RNDR', price: 9.85, change24h: 8.30, volume24h: '510M', category: 'new', sparkline: [9.05, 9.15, 9.20, 9.10, 9.35, 9.50, 9.62, 9.70, 9.65, 9.85] },
+];
 
 export default function HomePage() {
-    return (
-        <div className="min-h-screen bg-[#0A0A0A] text-white font-display selection:bg-brand-gold/30 scroll-smooth relative overflow-x-hidden">
+    const { theme, toggleTheme, token, user, logout } = useAuthStore();
+    const [coins, setCoins] = useState(INITIAL_COINS);
+    const [activeTab, setActiveTab] = useState('all'); // 'all' | 'hot' | 'gainers' | 'new'
+    const [calcUsd, setCalcUsd] = useState('1000');
+    const [calcCrypto, setCalcCrypto] = useState('BTC');
+    const [stats, setStats] = useState({ accounts: 412850, volume: 4210450890, uptime: 99.99 });
+    
+    // Store flashes: { [coinSymbol]: { direction: 'up'|'down', time: timestamp } }
+    const [flashes, setFlashes] = useState({});
+
+    // Price Tick simulator mimicking real-time Binance WebSocket data
+    useEffect(() => {
+        const interval = setInterval(() => {
+            // Randomly pick 1 to 3 coins to fluctuate
+            const updatedCoins = [...coins];
+            const numCoinsToUpdate = Math.floor(Math.random() * 3) + 1;
+            const updatedFlashes = { ...flashes };
+
+            for (let i = 0; i < numCoinsToUpdate; i++) {
+                const randIndex = Math.floor(Math.random() * updatedCoins.length);
+                const coin = updatedCoins[randIndex];
+                
+                // Random fluctuation (-0.2% to +0.25%)
+                const delta = (Math.random() * 0.45 - 0.2) / 100;
+                const oldPrice = coin.price;
+                const newPrice = oldPrice * (1 + delta);
+                
+                coin.price = Number(newPrice.toFixed(coin.price < 1 ? 4 : 2));
+                coin.change24h = Number((coin.change24h + delta * 100).toFixed(2));
+                
+                // Add to sparkline and drop oldest
+                const newSpark = [...coin.sparkline.slice(1), coin.price];
+                coin.sparkline = newSpark;
+
+                const direction = delta >= 0 ? 'up' : 'down';
+                updatedFlashes[coin.symbol] = { direction, time: Date.now() };
+            }
+
+            setCoins(updatedCoins);
+            setFlashes(updatedFlashes);
+
+            // Slightly increment platform stats to feel dynamic
+            setStats(prev => ({
+                accounts: prev.accounts + (Math.random() > 0.4 ? 1 : 0),
+                volume: prev.volume + Math.floor(Math.random() * 12500),
+                uptime: 99.99
+            }));
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, [coins, flashes]);
+
+    // Cleanup stale flashes every 1000ms
+    useEffect(() => {
+        const cleanup = setInterval(() => {
+            const now = Date.now();
+            let changed = false;
+            const nextFlashes = { ...flashes };
             
-            {/* Ambient Glows */}
-            <div className="absolute top-0 right-0 w-[600px] h-[400px] bg-brand-gold/10 blur-[100px] rounded-full pointer-events-none" />
+            Object.keys(nextFlashes).forEach(symbol => {
+                if (now - nextFlashes[symbol].time > 800) {
+                    delete nextFlashes[symbol];
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                setFlashes(nextFlashes);
+            }
+        }, 500);
+
+        return () => clearInterval(cleanup);
+    }, [flashes]);
+
+    // Filter coins according to active tab
+    const filteredCoins = coins.filter(coin => {
+        if (activeTab === 'all') return true;
+        return coin.category === activeTab;
+    });
+
+    // Helper to render sparklines dynamically
+    const getSparklinePath = (points, width = 120, height = 36) => {
+        const min = Math.min(...points);
+        const max = Math.max(...points);
+        const range = max - min === 0 ? 1 : max - min;
+        return points.map((p, i) => {
+            const x = (i / (points.length - 1)) * width;
+            const y = height - ((p - min) / range) * height;
+            return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+        }).join(' ');
+    };
+
+    // Calculate converted crypto amount based on live prices
+    const getCalculatedCrypto = () => {
+        const coin = coins.find(c => c.symbol === calcCrypto);
+        if (!coin) return '0.0000';
+        const parsedUsd = parseFloat(calcUsd);
+        if (isNaN(parsedUsd) || parsedUsd <= 0) return '0.0000';
+        return (parsedUsd / coin.price).toFixed(coin.price < 1 ? 2 : 5);
+    };
+
+    return (
+        <div className="min-h-screen bg-brand-bg text-white font-display selection:bg-brand-gold/30 scroll-smooth relative overflow-x-hidden transition-colors duration-300">
+            
+            {/* Ambient Background Glows */}
+            <div className="absolute top-0 right-0 w-[600px] h-[400px] bg-brand-gold/5 dark:bg-brand-gold/10 blur-[120px] rounded-full pointer-events-none" />
             <div className="absolute top-[600px] left-[-200px] w-[500px] h-[500px] bg-brand-gold/5 blur-[120px] rounded-full pointer-events-none z-0" />
 
-            {/* Navigation Header */}
-            <div className="flex items-center justify-between px-6 md:px-16 py-8 border-b border-white/5 relative z-10 backdrop-blur-sm sticky top-0 bg-[#0A0A0A]/80">
-                <div className="text-2xl tracking-[0.2em] font-light text-brand-gold">
-                    ALGORYZE
-                </div>
-                <div className="hidden md:flex items-center gap-10 text-sm font-medium text-gray-400">
-                    <a href="#" className="hover:text-white transition-colors">Features</a>
-                    <a href="#" className="hover:text-white transition-colors">Resources</a>
-                    <a href="#" className="hover:text-white transition-colors">Pricing</a>
-                    <a href="#" className="hover:text-white transition-colors">Log In</a>
-                    <a href="#" className="px-6 py-2 bg-gradient-to-r from-[#F5D061] to-[#E5B842] text-black font-semibold rounded-full hover:shadow-[0_0_15px_rgba(229,184,66,0.3)] transition-all">
-                        Sign Up
-                    </a>
-                </div>
-            </div>
-
-            {/* Hero Section */}
-            <div className="flex flex-col items-center text-center px-6 py-24 max-w-5xl mx-auto relative z-10">
-                <h1 className="text-5xl md:text-7xl font-semibold leading-tight mb-8 tracking-tight">
-                    Elevate Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F5D061] to-[#E5B842]">Trading</span> with<br />
-                    Advanced Institutional Indicators
-                </h1>
-                
-                <p className="text-gray-400 text-lg leading-relaxed mb-12 max-w-3xl px-4">
-                    Trade in Forex, Cryptocurrencies, Index, and Stocks effortlessly. Our indicators identify 'bottoms' and 'tops' thanks to advanced Artificial Intelligence, adapting and updating according to market trends, enhancing your profits.
-                </p>
-                
-                <div className="flex items-center justify-center gap-6">
-                    <button className="px-10 py-4 bg-gradient-to-r from-[#F5D061] to-[#E5B842] text-[#111111] font-bold text-lg rounded-full hover:shadow-[0_0_20px_rgba(229,184,66,0.4)] transition-all">
-                        Early Access
-                    </button>
-                    <button className="px-10 py-4 bg-[#1A1A1A] text-white font-semibold text-lg rounded-full hover:bg-[#222222] transition-all">
-                        Join Now
-                    </button>
-                </div>
-            </div>
-
-            {/* Main Chart Mockup */}
-            <div className="w-full flex justify-center px-4 md:px-12 pb-20 relative z-10">
-                <div className="relative w-full max-w-6xl aspect-[21/9] bg-[#0A0A0A] rounded-2xl border border-[#222] shadow-[0_20px_80px_rgba(0,0,0,0.8)] overflow-hidden">
-                    {/* Gold Top Borders */}
-                    <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E5B842]/80 to-transparent shadow-[0_0_15px_#E5B842]" />
-                    <div className="absolute -top-[1px] left-8 right-8 h-[1px] bg-[#E5B842]/40" />
-                    
-                    {/* Chart Header */}
-                    <div className="flex justify-between items-center p-5 border-b border-white/5 text-[11px] text-gray-400">
-                        <div className="flex gap-4">
-                            <span>CFDS on Gold (US$ / Oz) . TVC</span>
-                            <span className="text-[#15B06D]">O <span className="text-gray-500">63243.56</span> H <span className="text-gray-500">67769.00</span> L <span className="text-gray-500">67769.00</span> L <span className="text-gray-500">1+6.72%</span> ± <span className="text-red-500">20.05</span> ± <span className="text-red-500">0.86%</span></span>
+            {/* Binance-Style Navigation Header */}
+            <nav className="flex items-center justify-between px-6 md:px-12 py-5 border-b border-brand-border sticky top-0 bg-brand-bg/80 backdrop-blur-md z-50 transition-colors duration-300">
+                <div className="flex items-center gap-10">
+                    <Link to="/" className="flex items-center gap-3 group">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-black/40 border border-brand-border flex items-center justify-center p-1 group-hover:shadow-gold-sm transition-all">
+                            <img src="/crytinox-logo.png" alt="Crytinox Logo" className="w-full h-full object-contain" />
                         </div>
-                        <div className="px-4 py-1.5 bg-[#1A1A1A] rounded text-white cursor-pointer hover:bg-[#222]">USD</div>
-                    </div>
+                        <span className="text-xl md:text-2xl font-semibold tracking-[0.1em] text-white flex items-center">
+                            CRYTINOX<span className="text-brand-gold font-bold ml-1">.</span>
+                        </span>
+                    </Link>
                     
-                    {/* Mock Grid Lines & Axes */}
-                    <div className="absolute right-0 top-14 bottom-0 w-20 border-l border-[#222] text-[10px] text-gray-500 flex flex-col justify-between py-8 items-end pr-3 bg-[#0A0A0A] z-10 font-mono">
-                        <span>2400.00</span>
-                        <span>2300.00</span>
-                        <span className="bg-[#15B06D]/20 text-[#15B06D] px-1.5 py-0.5 rounded">2200.00</span>
-                        <span>2100.00</span>
-                        <span>2000.00</span>
-                        <span className="bg-[#FF4159]/20 text-[#FF4159] px-1.5 py-0.5 rounded">1900.00</span>
-                        <span>1800.00</span>
-                        <span>1700.00</span>
-                        <span>1600.00</span>
+                    {/* Navigation Links */}
+                    <div className="hidden lg:flex items-center gap-8 text-sm font-medium text-muted">
+                        <Link to="/market" className="hover:text-brand-gold transition-colors">Markets</Link>
+                        <Link to="/trade/BTCUSDT" className="hover:text-brand-gold transition-colors">Trade</Link>
+                        <Link to="/staking" className="hover:text-brand-gold transition-colors flex items-center gap-1.5">
+                            Staking <span className="text-[10px] bg-brand-gold/20 text-brand-gold px-1.5 py-0.2 rounded-full font-bold">HOT</span>
+                        </Link>
+                        <Link to="/leaderboard" className="hover:text-brand-gold transition-colors">Leaderboard</Link>
+                        {token && <Link to="/wallet" className="hover:text-brand-gold transition-colors">Wallet</Link>}
+                        {token && <Link to="/reports" className="hover:text-brand-gold transition-colors">Reports</Link>}
+                        {token && user?.role === 'admin' && (
+                            <Link to="/admin" className="text-brand-gold/90 hover:text-brand-gold transition-colors font-semibold">Admin</Link>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-5">
+                    {/* Theme Switcher Button */}
+                    <button 
+                        onClick={toggleTheme}
+                        className="p-2.5 rounded-xl border border-brand-border bg-brand-surface/40 hover:bg-brand-surface/80 hover:border-brand-gold/40 text-brand-gold transition-all duration-300 flex items-center justify-center shadow-inner"
+                        aria-label="Toggle Theme"
+                    >
+                        {theme === 'dark' ? (
+                            // Sun Icon
+                            <svg className="w-5 h-5 animate-pulse-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.364l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                            </svg>
+                        ) : (
+                            // Moon Icon
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                            </svg>
+                        )}
+                    </button>
+
+                    {/* Auth Status CTAs */}
+                    <div className="flex items-center gap-4">
+                        {token ? (
+                            <>
+                                <Link 
+                                    to="/market" 
+                                    className="hidden sm:inline-block px-5 py-2 border border-brand-gold/30 hover:border-brand-gold hover:shadow-gold-sm rounded-xl text-xs font-semibold text-white tracking-wide transition-all"
+                                >
+                                    Dashboard
+                                </Link>
+                                <button 
+                                    onClick={logout}
+                                    className="px-5 py-2 bg-brand-panel border border-brand-border hover:bg-[#ff4d4d]/10 hover:border-[#ff4d4d]/50 text-[#ff4d4d] rounded-xl text-xs font-semibold tracking-wide transition-all"
+                                >
+                                    Logout
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <Link 
+                                    to="/auth/login" 
+                                    className="px-5 py-2 hover:text-brand-gold text-xs font-semibold text-white transition-colors"
+                                >
+                                    Log In
+                                </Link>
+                                <Link 
+                                    to="/auth/register" 
+                                    className="px-5 py-2.5 bg-gradient-to-r from-brand-gold-lt to-brand-gold text-black hover:shadow-gold-sm hover:scale-[1.02] rounded-xl text-xs font-bold transition-all shadow-md"
+                                >
+                                    Register Now
+                                </Link>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </nav>
+
+            {/* Hero Section Container */}
+            <div className="max-w-7xl mx-auto px-6 md:px-12 pt-16 pb-24 relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                
+                {/* Left Side Info Banner */}
+                <div className="lg:col-span-7 space-y-8">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-gold/10 border border-brand-gold/20 rounded-full text-brand-gold text-[10px] font-bold uppercase tracking-wider">
+                        <span className="flex h-1.5 w-1.5 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-gold opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-brand-gold"></span>
+                        </span>
+                        New High-Velocity Server Live
                     </div>
 
-                    {/* Center Candle Chart Area Simulation */}
-                    <div className="absolute inset-y-14 left-0 right-20 flex items-end justify-center px-12 pb-10">
-                        {/* SVG Candlesticks Mockup */}
-                        <svg width="100%" height="80%" viewBox="0 0 800 300" preserveAspectRatio="none">
-                            {/* Grid Lines horizontal */}
-                            <path d="M0 30 L800 30 M0 70 L800 70 M0 110 L800 110 M0 150 L800 150 M0 190 L800 190 M0 230 L800 230" stroke="#ffffff" strokeOpacity="0.02" strokeWidth="1" fill="none" />
-                            {/* Grid Lines vertical */}
-                            <path d="M100 0 L100 300 M200 0 L200 300 M300 0 L300 300 M400 0 L400 300 M500 0 L500 300 M600 0 L600 300 M700 0 L700 300" stroke="#ffffff" strokeOpacity="0.02" strokeWidth="1" fill="none" />
-                            
-                            {/* Trend Lines */}
-                            <path d="M50 250 L750 150" stroke="#E5B842" strokeOpacity="0.3" strokeWidth="1.5" strokeDasharray="4 4" fill="none" />
-                            <path d="M200 120 L750 200" stroke="#E5B842" strokeOpacity="0.3" strokeWidth="1.5" strokeDasharray="4 4" fill="none" />
-
-                            {/* Support / Resistance Blocks */}
-                            <rect x="420" y="140" width="120" height="40" fill="#E5B842" fillOpacity="0.1" stroke="#E5B842" strokeOpacity="0.2" strokeWidth="1" />
-                            <rect x="520" y="240" width="80" height="15" fill="#15B06D" fillOpacity="0.2" />
-                            <rect x="600" y="240" width="80" height="15" fill="#FF4159" fillOpacity="0.2" />
-                            
-                            <text x="540" y="250" fill="#15B06D" fontSize="10" fontFamily="sans-serif">support</text>
-                            
-                            {/* Mock Candles (Green & Red) */}
-                            <g strokeWidth="2">
-                                <g stroke="#15B06D" fill="#15B06D">
-                                    <rect x="180" y="220" width="8" height="20" /> <line x1="184" y1="210" x2="184" y2="250" />
-                                    <rect x="200" y="200" width="8" height="25" /> <line x1="204" y1="190" x2="204" y2="230" />
-                                    <rect x="220" y="180" width="8" height="25" /> <line x1="224" y1="170" x2="224" y2="210" />
-                                    <rect x="240" y="150" width="8" height="35" /> <line x1="244" y1="140" x2="244" y2="190" />
-                                </g>
-                                <g stroke="#FF4159" fill="#FF4159">
-                                    <rect x="260" y="140" width="8" height="20" /> <line x1="264" y1="130" x2="264" y2="170" />
-                                    <rect x="280" y="150" width="8" height="50" /> <line x1="284" y1="140" x2="284" y2="210" />
-                                    <rect x="300" y="190" width="8" height="30" /> <line x1="304" y1="180" x2="304" y2="230" />
-                                </g>
-                                <g stroke="#15B06D" fill="#15B06D">
-                                    <rect x="320" y="170" width="8" height="30" /> <line x1="324" y1="160" x2="324" y2="210" />
-                                    <rect x="340" y="140" width="8" height="35" /> <line x1="344" y1="130" x2="344" y2="180" />
-                                    <rect x="360" y="110" width="8" height="40" /> <line x1="364" y1="100" x2="364" y2="160" />
-                                </g>
-                                <g stroke="#FF4159" fill="#FF4159">
-                                    <rect x="380" y="120" width="8" height="30" /> <line x1="384" y1="110" x2="384" y2="160" />
-                                    <rect x="400" y="140" width="8" height="40" /> <line x1="404" y1="130" x2="404" y2="190" />
-                                </g>
-                                <g stroke="#15B06D" fill="#15B06D">
-                                    <rect x="420" y="120" width="8" height="25" /> <line x1="424" y1="110" x2="424" y2="150" />
-                                    <rect x="440" y="100" width="8" height="30" /> <line x1="444" y1="90" x2="444" y2="140" />
-                                    <rect x="460" y="80" width="8" height="30" /> <line x1="464" y1="70" x2="464" y2="120" />
-                                </g>
-                                <g stroke="#FF4159" fill="#FF4159">
-                                    <rect x="480" y="90" width="8" height="50" /> <line x1="484" y1="80" x2="484" y2="150" />
-                                    <rect x="500" y="120" width="8" height="40" /> <line x1="504" y1="110" x2="504" y2="170" />
-                                    <rect x="520" y="150" width="8" height="30" /> <line x1="524" y1="140" x2="524" y2="190" />
-                                    <rect x="540" y="170" width="8" height="40" /> <line x1="544" y1="160" x2="544" y2="220" />
-                                </g>
-                                <g stroke="#15B06D" fill="#15B06D">
-                                    <rect x="560" y="180" width="8" height="20" /> <line x1="564" y1="170" x2="564" y2="210" />
-                                    <rect x="580" y="160" width="8" height="30" /> <line x1="584" y1="150" x2="584" y2="200" />
-                                    <rect x="600" y="160" width="8" height="20" /> <line x1="604" y1="150" x2="604" y2="190" />
-                                </g>
-                                <g stroke="#FF4159" fill="#FF4159">
-                                    <rect x="620" y="150" width="8" height="30" /> <line x1="624" y1="140" x2="624" y2="190" />
-                                </g>
-                                <g stroke="#15B06D" fill="#15B06D">
-                                    <rect x="640" y="120" width="8" height="40" /> <line x1="644" y1="110" x2="644" y2="170" />
-                                </g>
-                            </g>
-                        </svg>
-                        
-                        {/* Tooltip Mockup */}
-                        <div className="absolute left-8 bottom-24 max-w-[280px] bg-gradient-to-r from-[#D4AF37] to-[#F5D061] text-[#111] text-xs font-bold p-4 rounded-lg shadow-xl z-20 flex items-start gap-4">
-                            <div className="mt-0.5 shrink-0">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-[1.1] tracking-tight">
+                        Institutional Grade <br />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-gold-lt via-brand-gold to-brand-gold-dk">
+                            Crypto Trading
+                        </span>
+                    </h1>
+                    
+                    <p className="text-muted text-base md:text-lg leading-relaxed max-w-2xl">
+                        Experience lightning-fast order routing, precision charts, and AI-driven bottom/top alerts on Forex, Indices, and Crypto assets. Backed by institutional liquidity pools.
+                    </p>
+                    
+                    {/* Stats Counters */}
+                    <div className="grid grid-cols-3 gap-6 pt-6 border-t border-brand-border max-w-xl">
+                        <div>
+                            <div className="text-xl sm:text-2xl font-bold text-white font-mono">
+                                ${ (stats.volume / 1e9).toFixed(2) }B
                             </div>
-                            <p className="leading-tight">
-                                This indicator is based on identifying the divergence with the DXY without the need for 2 charts!
-                            </p>
-                            {/* Pointer triangle */}
-                            <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-[#F5D061] rotate-45" />
+                            <div className="text-xs text-muted font-semibold mt-1">24h Vol Traded</div>
+                        </div>
+                        <div>
+                            <div className="text-xl sm:text-2xl font-bold text-white font-mono">
+                                { stats.accounts.toLocaleString() }
+                            </div>
+                            <div className="text-xs text-muted font-semibold mt-1">Traders Enrolled</div>
+                        </div>
+                        <div>
+                            <div className="text-xl sm:text-2xl font-bold text-white font-mono">
+                                { stats.uptime }%
+                            </div>
+                            <div className="text-xs text-muted font-semibold mt-1">Core Engine Uptime</div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-4 pt-4">
+                        <Link 
+                            to={token ? "/market" : "/auth/register"} 
+                            className="px-8 py-4 bg-gradient-to-r from-brand-gold-lt to-brand-gold text-black font-bold text-sm rounded-xl hover:shadow-gold-md hover:scale-[1.01] transition-all flex items-center gap-2"
+                        >
+                            Get Started
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                        </Link>
+                        <Link 
+                            to="/trade/BTCUSDT" 
+                            className="px-8 py-4 bg-brand-panel border border-brand-border text-white font-semibold text-sm rounded-xl hover:bg-brand-surface/80 transition-all"
+                        >
+                            View Live Markets
+                        </Link>
+                    </div>
+                </div>
+
+                {/* Right Side Convertor/Calculator & Mini Watchlist Widget */}
+                <div className="lg:col-span-5 space-y-6">
+                    
+                    {/* Live Ticker Convertor Widget */}
+                    <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 shadow-panel relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-gold/5 blur-[40px] rounded-full pointer-events-none" />
+                        
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-muted">Quick Conversion</h3>
+                            <span className="text-[10px] font-mono text-brand-gold bg-brand-gold/10 px-2 py-0.5 rounded-md font-semibold">Live Feed</span>
+                        </div>
+
+                        <div className="space-y-4">
+                            {/* Input Field */}
+                            <div>
+                                <label className="text-[10px] text-muted font-bold uppercase tracking-widest block mb-2">You Pay (USD)</label>
+                                <div className="relative">
+                                    <input 
+                                        type="number"
+                                        value={calcUsd}
+                                        onChange={(e) => setCalcUsd(e.target.value)}
+                                        className="w-full bg-brand-panel border border-brand-border rounded-xl px-4 py-3.5 text-white font-mono text-base placeholder-dim outline-none transition-all"
+                                        placeholder="0.00"
+                                    />
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted font-bold">USD</span>
+                                </div>
+                            </div>
+
+                            {/* Dropdown Crypto Select */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] text-muted font-bold uppercase tracking-widest block mb-2">Receive Asset</label>
+                                    <select 
+                                        value={calcCrypto}
+                                        onChange={(e) => setCalcCrypto(e.target.value)}
+                                        className="w-full bg-brand-panel border border-brand-border rounded-xl px-4 py-3 text-white font-mono text-sm outline-none transition-all cursor-pointer"
+                                    >
+                                        <option value="BTC">BTC (Bitcoin)</option>
+                                        <option value="ETH">ETH (Ethereum)</option>
+                                        <option value="BNB">BNB (BNB)</option>
+                                        <option value="SOL">SOL (Solana)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-muted font-bold uppercase tracking-widest block mb-2">You Get (Estimate)</label>
+                                    <div className="w-full bg-brand-panel border border-brand-border rounded-xl px-4 py-3 text-brand-gold font-mono text-sm font-bold flex items-center justify-between">
+                                        <span>{ getCalculatedCrypto() }</span>
+                                        <span>{ calcCrypto }</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <Link 
+                                to={`/trade/${calcCrypto}USDT`}
+                                className="w-full mt-2 py-3.5 bg-gradient-to-r from-brand-gold to-brand-gold-lt text-black text-xs font-bold tracking-[0.1em] rounded-xl hover:shadow-gold-sm hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+                            >
+                                BUY {calcCrypto} INSTANTLY
+                            </Link>
+                        </div>
+                    </div>
+
+                    {/* Binance Premium Features Ticker widget */}
+                    <div className="bg-brand-panel/40 border border-brand-border rounded-2xl p-5 flex items-center gap-4 hover:shadow-gold-sm transition-all duration-300">
+                        <div className="w-12 h-12 rounded-xl bg-brand-gold/10 border border-brand-gold/20 flex items-center justify-center shrink-0">
+                            <svg className="w-6 h-6 text-brand-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-white">Full Financial Security</h4>
+                            <p className="text-[11px] text-muted mt-1 leading-relaxed">Secure storage via hardware security modules and fully audited cold storage reserves.</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Dots indicator */}
-            <div className="flex justify-center gap-3 pb-20">
-                <div className="w-3 h-3 rounded-full bg-white"></div>
-                <div className="w-3 h-3 rounded-full bg-white/20"></div>
-                <div className="w-3 h-3 rounded-full bg-white/20"></div>
+            {/* Quick Interactive Mini Market Rates Bar */}
+            <div className="border-t border-b border-brand-border bg-brand-panel/50 py-4 overflow-x-auto no-scrollbar transition-colors duration-300">
+                <div className="max-w-7xl mx-auto px-6 flex items-center justify-between gap-8 min-w-[800px]">
+                    {coins.slice(0, 4).map(coin => {
+                        const flash = flashes[coin.symbol];
+                        let flashClass = '';
+                        if (flash) {
+                            flashClass = flash.direction === 'up' ? 'text-flash-up' : 'text-flash-down';
+                        }
+                        return (
+                            <Link 
+                                to={`/trade/${coin.symbol}USDT`}
+                                key={coin.symbol}
+                                className="flex items-center gap-4 hover:bg-brand-surface/40 p-2 rounded-xl transition-colors cursor-pointer"
+                            >
+                                <span className="font-bold text-xs text-white">{coin.symbol}/USDT</span>
+                                <span className={`font-mono text-xs font-semibold ${flashClass}`}>
+                                    ${coin.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </span>
+                                <span className={`text-[10px] font-bold ${coin.change24h >= 0 ? 'text-[#15B06D]' : 'text-brand-red'}`}>
+                                    {coin.change24h >= 0 ? '+' : ''}{coin.change24h}%
+                                </span>
+                            </Link>
+                        );
+                    })}
+                </div>
             </div>
 
-            {/* Partner Logos */}
-            <div className="flex flex-wrap justify-center items-center gap-12 md:gap-24 pb-32 px-8 text-gray-300">
-                <div className="text-2xl md:text-3xl font-display font-medium tracking-widest uppercase hover:text-white transition-colors cursor-pointer">BYBIT</div>
-                <div className="text-2xl md:text-3xl font-display font-medium flex items-center gap-3 uppercase tracking-widest hover:text-white transition-colors cursor-pointer">
-                     <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M11.996 0L0 12.004l11.996 11.996L24 12.004 11.996 0zm-2.004 5.992l2.004 2.004 2.004-2.004L16.004 8l-4.008 4.008L7.988 8l2.004-2.008zM4.988 9.004l2.004 2.004-2.004 2.004-2.004-2.004L4.988 9.004zm14.024 0l-2.004 2.004 2.004 2.004 2.004-2.004-2.004-2.004zM11.996 14.996l-2.004-2.004 2.004-2.004 2.004 2.004-2.004 2.004zm-2.004 3.016l2.004-2.004 2.004 2.004L11.996 20 7.988 16l2.004-2.004z"/></svg> BINANCE
+            {/* Interactive Market Tables Section */}
+            <div className="max-w-7xl mx-auto px-6 md:px-12 py-24 relative z-10">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+                    <div>
+                        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Market Overview</h2>
+                        <p className="text-muted text-xs mt-2 leading-relaxed">Real-time live prices of major global cryptocurrencies. Click trade to open terminal.</p>
+                    </div>
+
+                    {/* Filter Tabs */}
+                    <div className="flex bg-brand-panel p-1 rounded-xl border border-brand-border max-w-max self-start md:self-auto">
+                        <button 
+                            onClick={() => setActiveTab('all')}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'all' ? 'bg-brand-surface text-brand-gold shadow-sm' : 'text-muted hover:text-white'}`}
+                        >
+                            All Cryptos
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('hot')}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'hot' ? 'bg-brand-surface text-brand-gold shadow-sm' : 'text-muted hover:text-white'}`}
+                        >
+                            Hot Coins
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('gainers')}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'gainers' ? 'bg-brand-surface text-brand-gold shadow-sm' : 'text-muted hover:text-white'}`}
+                        >
+                            Top Gainers
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('new')}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'new' ? 'bg-brand-surface text-brand-gold shadow-sm' : 'text-muted hover:text-white'}`}
+                        >
+                            New Listings
+                        </button>
+                    </div>
                 </div>
-                <div className="text-2xl md:text-3xl font-bold tracking-tight lowercase italic flex items-center gap-1 font-serif hover:text-white transition-colors cursor-pointer">
-                    <span className="text-5xl not-italic">₿</span>itcoin
-                </div>
-                <div className="text-2xl md:text-3xl font-medium tracking-tight flex items-center gap-3 hover:text-white transition-colors cursor-pointer">
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M22.95 12c0-5.96-5.01-10.82-11.08-11.2V-1c6.54.4 11.75 5.75 12.13 12.4h-1zM11.87 23.2C5.33 22.8 0 17.5 0 10.95h1c0 5.96 4.88 10.87 10.87 11.25v1zM6.5 12a5.5 5.5 0 1111 0 5.5 5.5 0 01-11 0z"/></svg> Meta
-                </div>
-                <div className="text-2xl md:text-3xl font-bold flex items-center gap-2 tracking-tight hover:text-white transition-colors cursor-pointer">
-                     BingX
+
+                {/* Crypto Rates Table */}
+                <div className="bg-brand-surface border border-brand-border rounded-2xl overflow-hidden shadow-panel">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-brand-border text-muted text-[10px] font-bold uppercase tracking-widest bg-brand-panel/30">
+                                    <th className="px-6 py-4.5">Asset</th>
+                                    <th className="px-6 py-4.5">Price</th>
+                                    <th className="px-6 py-4.5">24h Change</th>
+                                    <th className="px-6 py-4.5">24h Volume</th>
+                                    <th className="px-6 py-4.5">Trends (24h)</th>
+                                    <th className="px-6 py-4.5 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-brand-border/40 font-mono text-sm">
+                                {filteredCoins.map(coin => {
+                                    const flash = flashes[coin.symbol];
+                                    let flashBg = '';
+                                    let flashText = '';
+                                    if (flash) {
+                                        flashBg = flash.direction === 'up' ? 'bg-[#15B06D]/5 animate-flash-up' : 'bg-brand-red/5 animate-flash-down';
+                                        flashText = flash.direction === 'up' ? 'text-[#15B06D]' : 'text-brand-red';
+                                    }
+
+                                    return (
+                                        <tr 
+                                            key={coin.id} 
+                                            className={`hover:bg-brand-panel/20 transition-colors duration-200 ${flashBg}`}
+                                        >
+                                            {/* Coin Info */}
+                                            <td className="px-6 py-4.5 font-display">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-7 h-7 rounded-full bg-brand-panel border border-brand-border flex items-center justify-center font-bold text-xs text-brand-gold">
+                                                        {coin.symbol[0]}
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-bold text-white text-xs block">{coin.symbol}/USDT</span>
+                                                        <span className="text-[10px] text-muted">{coin.name}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            {/* Live Price */}
+                                            <td className={`px-6 py-4.5 font-bold text-xs text-white ${flashText}`}>
+                                                ${coin.price.toLocaleString(undefined, { minimumFractionDigits: coin.price < 1 ? 4 : 2 })}
+                                            </td>
+
+                                            {/* 24h Change */}
+                                            <td className="px-6 py-4.5 font-bold text-xs">
+                                                <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] ${coin.change24h >= 0 ? 'bg-[#15B06D]/10 text-[#15B06D]' : 'bg-brand-red/10 text-brand-red'}`}>
+                                                    {coin.change24h >= 0 ? '▲' : '▼'} {coin.change24h >= 0 ? '+' : ''}{coin.change24h}%
+                                                </span>
+                                            </td>
+
+                                            {/* 24h Volume */}
+                                            <td className="px-6 py-4.5 text-xs text-muted font-medium">
+                                                ${coin.volume24h}
+                                            </td>
+
+                                            {/* Mini Sparkline Chart */}
+                                            <td className="px-6 py-4.5">
+                                                <div className="w-24 h-9">
+                                                    <svg width="100%" height="100%" className="overflow-visible">
+                                                        <path 
+                                                            d={getSparklinePath(coin.sparkline)}
+                                                            fill="none" 
+                                                            stroke={coin.change24h >= 0 ? '#15B06D' : 'var(--color-red)'}
+                                                            strokeWidth="1.8"
+                                                            strokeLinecap="round"
+                                                        />
+                                                    </svg>
+                                                </div>
+                                            </td>
+
+                                            {/* Actions */}
+                                            <td className="px-6 py-4.5 text-right font-display">
+                                                <Link 
+                                                    to={`/trade/${coin.symbol}USDT`}
+                                                    className="inline-flex items-center gap-1 px-4 py-1.5 bg-brand-gold text-black text-[11px] font-bold rounded-lg hover:shadow-gold-sm hover:bg-brand-gold-lt transition-all"
+                                                >
+                                                    Trade
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                                                </Link>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
-            {/* Pro Toolkits Section Container */}
-            <div className="border-t border-white/5 mx-6 md:mx-16 pt-24 pb-24 relative">
-                {/* Another subtle glow inside this section */}
-                <div className="absolute top-1/2 left-1/4 w-[400px] h-[400px] bg-brand-gold/10 blur-[120px] rounded-full pointer-events-none" />
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-20 items-center max-w-7xl mx-auto">
+            {/* Premium Staking Promotion Card */}
+            <div className="max-w-7xl mx-auto px-6 md:px-12 pb-24 relative z-10">
+                <div className="bg-gradient-to-r from-brand-panel/80 via-brand-surface to-brand-panel/80 border border-brand-border rounded-3xl p-8 md:p-12 shadow-panel relative overflow-hidden flex flex-col lg:flex-row items-center justify-between gap-10">
+                    <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-brand-gold/5 blur-[100px] pointer-events-none" />
                     
-                    {/* Text Sidebar */}
-                    <div className="max-w-xl relative z-10">
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#1A1A1A] border border-white/5 rounded text-[#8A8A8A] text-xs font-bold uppercase mb-8 shadow-sm">
-                            Pro Toolkits <span className="text-[#E5B842] text-sm">★</span>
+                    <div className="space-y-4 max-w-xl text-center lg:text-left">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-brand-gold/10 border border-brand-gold/20 rounded-lg text-brand-gold text-[10px] font-bold uppercase tracking-wider">
+                            Crytinox Earn Program 💰
                         </div>
-                        <h3 className="text-5xl md:text-6xl font-semibold leading-tight mb-8 tracking-tight">
-                            The Most Powerful<br />tools, all in one place
-                        </h3>
-                        <p className="text-[#8A8A8A] text-lg leading-relaxed">
-                            Trade automated price action, advanced signals, and spot reversals with money flow. Our world renowned toolkits bring discretionary analysis to the next level...
+                        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+                            Stake Your Assets & Earn up to 18.5% APR
+                        </h2>
+                        <p className="text-muted text-xs leading-relaxed">
+                            Put your idle cryptocurrencies to work. Choose flexible or locked staking options for BTC, ETH, BNB, and USDT. Accrue hourly compounding yields with instant redemptions.
                         </p>
                     </div>
 
-                    {/* Small Card Mockup "Statistic" */}
-                    <div className="relative z-10 w-full md:pl-16">
-                        <div className="bg-[#111111] border rounded-t-2xl border-[#222] border-b-0 p-8 shadow-2xl relative overflow-hidden h-[350px] flex flex-col">
-                            <div className="absolute top-0 right-0 w-[250px] h-[250px] bg-brand-gold/5 blur-[60px] pointer-events-none" />
-                            
-                            <div className="flex justify-between items-center mb-8 relative z-10">
-                                <h4 className="text-xl font-medium text-white">Statistic</h4>
-                                <div className="flex gap-4 text-xs font-medium text-[#8A8A8A]">
-                                    <span className="hover:text-white cursor-pointer px-2 py-1">1m</span>
-                                    <span className="bg-[#222] text-[#E5B842] px-3 py-1 rounded cursor-pointer ring-1 ring-[#E5B842]/20">5m</span>
-                                    <span className="hover:text-white cursor-pointer px-2 py-1">30m</span>
-                                    <span className="hover:text-white cursor-pointer px-2 py-1">1h</span>
-                                    <span className="hover:text-white cursor-pointer px-2 py-1">1d</span>
-                                </div>
+                    <div className="flex flex-wrap items-center justify-center gap-6 shrink-0">
+                        <div className="bg-brand-panel border border-brand-border rounded-2xl p-5 w-40 text-center">
+                            <span className="text-[10px] text-muted font-bold block uppercase tracking-wider">USDT yield</span>
+                            <span className="text-2xl font-bold text-[#15B06D] font-mono mt-1 block">12.50%</span>
+                            <span className="text-[10px] text-brand-gold font-bold mt-1.5 block">Flexible</span>
+                        </div>
+                        <div className="bg-brand-panel border border-brand-border rounded-2xl p-5 w-40 text-center">
+                            <span className="text-[10px] text-muted font-bold block uppercase tracking-wider">ETH Yield</span>
+                            <span className="text-2xl font-bold text-[#15B06D] font-mono mt-1 block">8.25%</span>
+                            <span className="text-[10px] text-brand-gold font-bold mt-1.5 block">Locked 30D</span>
+                        </div>
+                        <div className="bg-brand-panel border border-brand-border rounded-2xl p-5 w-40 text-center">
+                            <span className="text-[10px] text-muted font-bold block uppercase tracking-wider">BNB Yield</span>
+                            <span className="text-2xl font-bold text-[#15B06D] font-mono mt-1 block">18.50%</span>
+                            <span className="text-[10px] text-brand-gold font-bold mt-1.5 block">Locked 90D</span>
+                        </div>
+                    </div>
+
+                    <div className="shrink-0">
+                        <Link 
+                            to="/staking"
+                            className="px-8 py-4 bg-brand-gold text-black font-bold text-sm rounded-xl hover:shadow-gold-md hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                        >
+                            Earn Yield Now
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
+                        </Link>
+                    </div>
+                </div>
+            </div>
+
+            {/* Why Choose Us & Pro Toolkits Info Grid */}
+            <div className="border-t border-brand-border bg-brand-panel/20 py-24 relative overflow-hidden transition-colors duration-300">
+                <div className="absolute top-1/2 left-1/4 w-[400px] h-[400px] bg-brand-gold/5 blur-[120px] rounded-full pointer-events-none" />
+                
+                <div className="max-w-7xl mx-auto px-6 md:px-12">
+                    <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-brand-gold">Security First Architecture</h3>
+                        <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">The Elite Trading Platform</h2>
+                        <p className="text-muted text-xs leading-relaxed">
+                            Crytinox provides high-frequency proprietary analytics, dynamic indicator overlays, and visual depth trackers that give retailers institutional execution edges.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        {/* Box 1 */}
+                        <div className="bg-brand-surface border border-brand-border rounded-2xl p-8 hover:border-brand-gold/40 hover:shadow-gold-sm hover:-translate-y-1 transition-all duration-300 group">
+                            <div className="w-12 h-12 rounded-xl bg-brand-gold/10 border border-brand-gold/20 flex items-center justify-center text-brand-gold mb-6 group-hover:scale-110 transition-transform">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                             </div>
-                            
-                            <div className="text-[11px] text-gray-500 mb-8 flex gap-5 font-mono relative z-10">
-                                <span className="text-white flex items-center gap-1.5 bg-[#222] px-3 py-1 rounded-sm">BTCUSD <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg></span>
-                                <span className="text-[#15B06D] flex items-center gap-2"><span className="text-gray-500">O 63243.56</span> <span className="text-gray-500">H 67769.00</span> <span className="text-gray-500">L 67769.00</span> <span className="text-gray-500">C 67769.00</span></span>
+                            <h4 className="text-base font-bold text-white mb-3">Ultra-Low Latency</h4>
+                            <p className="text-muted text-xs leading-relaxed">
+                                Our match engines deploy within 10 milliseconds, processing up to 100,000 requests per second under peak volatile stress.
+                            </p>
+                        </div>
+
+                        {/* Box 2 */}
+                        <div className="bg-brand-surface border border-brand-border rounded-2xl p-8 hover:border-brand-gold/40 hover:shadow-gold-sm hover:-translate-y-1 transition-all duration-300 group">
+                            <div className="w-12 h-12 rounded-xl bg-brand-gold/10 border border-brand-gold/20 flex items-center justify-center text-brand-gold mb-6 group-hover:scale-110 transition-transform">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
                             </div>
-                            
-                            {/* Mini Chart Mockup Container */}
-                            <div className="w-full flex-1 relative flex items-end -mx-2">
-                                 <svg width="100%" height="180" viewBox="0 0 400 180" preserveAspectRatio="none" className="translate-y-4">
-                                    {/* Grid */}
-                                    <path d="M0 30 L400 30 M0 60 L400 60 M0 90 L400 90 M0 120 L400 120 M0 150 L400 150" stroke="#ffffff" strokeOpacity="0.03" strokeWidth="1" fill="none" />
-                                    {/* Candlesticks */}
-                                    <g strokeWidth="2.5">
-                                        {/* Simulated pattern */}
-                                        <g stroke="#15B06D" fill="#15B06D">
-                                            <rect x="20" y="140" width="6" height="20" /> <line x1="23" y1="130" x2="23" y2="170" />
-                                            <rect x="40" y="120" width="6" height="30" /> <line x1="43" y1="110" x2="43" y2="160" />
-                                            <rect x="60" y="90" width="6" height="35" /> <line x1="63" y1="80" x2="63" y2="130" />
-                                        </g>
-                                        <g stroke="#FF4159" fill="#FF4159">
-                                            <rect x="80" y="100" width="6" height="25" /> <line x1="83" y1="90" x2="83" y2="130" />
-                                            <rect x="100" y="120" width="6" height="30" /> <line x1="103" y1="110" x2="103" y2="160" />
-                                        </g>
-                                        <g stroke="#15B06D" fill="#15B06D">
-                                            <rect x="120" y="100" width="6" height="20" /> <line x1="123" y1="90" x2="123" y2="130" />
-                                            <rect x="140" y="70" width="6" height="35" /> <line x1="143" y1="60" x2="143" y2="110" />
-                                            <rect x="160" y="40" width="6" height="35" /> <line x1="163" y1="30" x2="163" y2="80" />
-                                        </g>
-                                        <g stroke="#FF4159" fill="#FF4159">
-                                            <rect x="180" y="50" width="6" height="40" /> <line x1="183" y1="40" x2="183" y2="100" />
-                                            <rect x="200" y="80" width="6" height="30" /> <line x1="203" y1="70" x2="203" y2="120" />
-                                            <rect x="220" y="100" width="6" height="40" /> <line x1="223" y1="90" x2="223" y2="150" />
-                                        </g>
-                                        <g stroke="#15B06D" fill="#15B06D">
-                                           <rect x="240" y="120" width="6" height="20" /> <line x1="243" y1="110" x2="243" y2="150" />
-                                           <rect x="260" y="100" width="6" height="30" /> <line x1="263" y1="90" x2="263" y2="140" />
-                                           <rect x="280" y="70" width="6" height="40" /> <line x1="283" y1="60" x2="283" y2="120" />
-                                           <rect x="300" y="40" width="6" height="35" /> <line x1="303" y1="30" x2="303" y2="80" />
-                                        </g>
-                                        <g stroke="#FF4159" fill="#FF4159">
-                                            <rect x="320" y="60" width="6" height="20" /> <line x1="323" y1="50" x2="323" y2="90" />
-                                            <rect x="340" y="80" width="6" height="30" /> <line x1="343" y1="70" x2="343" y2="120" />
-                                        </g>
-                                        <g stroke="#15B06D" fill="#15B06D">
-                                            <rect x="360" y="60" width="6" height="30" /> <line x1="363" y1="50" x2="363" y2="100" />
-                                            <rect x="380" y="30" width="6" height="35" /> <line x1="383" y1="20" x2="383" y2="70" />
-                                        </g>
-                                    </g>
-                                    
-                                    {/* Indicators Overlay */}
-                                    <path d="M0 140 Q100 60 200 110 T400 20" stroke="#3b82f6" strokeWidth="2.5" fill="none" opacity="0.6"/>
-                                    <path d="M0 120 Q150 130 250 60 T400 10" stroke="#f59e0b" strokeWidth="2.5" fill="none" opacity="0.6"/>
-                                 </svg>
+                            <h4 className="text-base font-bold text-white mb-3">Institutional Tools</h4>
+                            <p className="text-muted text-xs leading-relaxed">
+                                Align and filter order books against divergence curves. Visualize smart contract volumes without leaving the panel.
+                            </p>
+                        </div>
+
+                        {/* Box 3 */}
+                        <div className="bg-brand-surface border border-brand-border rounded-2xl p-8 hover:border-brand-gold/40 hover:shadow-gold-sm hover:-translate-y-1 transition-all duration-300 group">
+                            <div className="w-12 h-12 rounded-xl bg-brand-gold/10 border border-brand-gold/20 flex items-center justify-center text-brand-gold mb-6 group-hover:scale-110 transition-transform">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                             </div>
-                            
-                            {/* Mouse pointer indicator mockup on chart */}
-                            <div className="absolute right-32 bottom-20 flex items-center gap-1.5 z-20">
-                                <div className="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_12px_#3b82f6]"></div>
-                                <div className="text-[10px] font-medium text-white bg-blue-500/80 px-1.5 py-0.5 rounded shadow-sm">68.5k</div>
-                            </div>
+                            <h4 className="text-base font-bold text-white mb-3">Reserves Ledger</h4>
+                            <p className="text-muted text-xs leading-relaxed">
+                                We operate on full reserve ledger models with transparent addresses so your deposits are verifiable on-chain 24/7.
+                            </p>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Footer */}
+            <footer className="border-t border-brand-border bg-brand-surface py-16 transition-colors duration-300">
+                <div className="max-w-7xl mx-auto px-6 md:px-12 grid grid-cols-1 md:grid-cols-4 gap-12">
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-black/40 border border-brand-border flex items-center justify-center p-1 font-bold text-brand-gold">
+                                <img src="/crytinox-logo.png" alt="Crytinox Logo" className="w-full h-full object-contain" />
+                            </div>
+                            <span className="text-lg font-bold text-white tracking-[0.1em]">CRYTINOX</span>
+                        </div>
+                        <p className="text-muted text-[11px] leading-relaxed">
+                            Crytinox is a leading high-efficiency institutional cryptocurrency liquidity portal offering premium derivative access.
+                        </p>
+                        <div className="flex items-center gap-4 text-muted pt-2">
+                            <a href="#" className="hover:text-brand-gold transition-colors"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg></a>
+                            <a href="#" className="hover:text-brand-gold transition-colors"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.051.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>
+                            <a href="#" className="hover:text-brand-gold transition-colors"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.779-1.75-1.75s.784-1.75 1.75-1.75 1.75.779 1.75 1.75-.784 1.75-1.75 1.75zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg></a>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-white mb-4">Products</h4>
+                        <ul className="space-y-2 text-[11px] text-muted font-medium">
+                            <li><Link to="/market" className="hover:text-brand-gold transition-colors">Exchange Terminal</Link></li>
+                            <li><Link to="/staking" className="hover:text-brand-gold transition-colors">Staking Yields</Link></li>
+                            <li><Link to="/ecard" className="hover:text-brand-gold transition-colors">Crytinox Visa Card</Link></li>
+                            <li><Link to="/leaderboard" className="hover:text-brand-gold transition-colors">Institutional Leaderboard</Link></li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-white mb-4">Service Support</h4>
+                        <ul className="space-y-2 text-[11px] text-muted font-medium">
+                            <li><a href="mailto:support@crytinox.com" className="hover:text-brand-gold transition-colors">Help Center</a></li>
+                            <li><Link to="/kyc" className="hover:text-brand-gold transition-colors">KYC Verification</Link></li>
+                            <li><a href="#" className="hover:text-brand-gold transition-colors">API Documentation</a></li>
+                            <li><a href="#" className="hover:text-brand-gold transition-colors">Security Disclosures</a></li>
+                        </ul>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-white">Theme Preference</h4>
+                        <p className="text-[10px] text-muted leading-relaxed">Toggle between visual layouts optimized for bright work spaces or dark trading setups.</p>
+                        <button 
+                            onClick={toggleTheme}
+                            className="w-full py-2.5 rounded-xl border border-brand-border bg-brand-panel text-brand-gold hover:bg-brand-surface/80 hover:border-brand-gold/40 text-xs font-bold flex items-center justify-center gap-2 transition-all duration-300"
+                        >
+                            {theme === 'dark' ? 'SWITCH TO LIGHT MODE ☀️' : 'SWITCH TO DARK MODE 🌙'}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="max-w-7xl mx-auto px-6 md:px-12 mt-12 pt-8 border-t border-brand-border flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] text-muted font-medium">
+                    <span>© 2026 Crytinox Global Ltd. All rights reserved.</span>
+                    <div className="flex gap-6">
+                        <a href="#" className="hover:text-brand-gold transition-colors">Terms of Service</a>
+                        <a href="#" className="hover:text-brand-gold transition-colors">Privacy Policy</a>
+                        <a href="#" className="hover:text-brand-gold transition-colors">Cookie Preferences</a>
+                    </div>
+                </div>
+            </footer>
         </div>
     );
 }

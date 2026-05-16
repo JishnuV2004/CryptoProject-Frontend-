@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 
 const USER_NAV = [
@@ -90,10 +90,10 @@ export default function Sidebar() {
                 {user ? (
                     <>
                         {!collapsed && (
-                            <div className="px-2 py-1">
-                                <p className="text-white text-sm font-medium truncate">{user.full_name}</p>
-                                <p className="text-muted text-xs truncate">{user.email}</p>
-                            </div>
+                            <Link to="/profile" className="block px-2 py-2 rounded-lg hover:bg-brand-panel/50 border border-transparent hover:border-brand-gold/20 transition-all cursor-pointer">
+                                <p className="text-white text-sm font-medium truncate">{user.full_name || user.Name || user.name || 'My Profile'}</p>
+                                <p className="text-muted text-xs truncate">{user.email || user.Email}</p>
+                            </Link>
                         )}
                         <button
                             onClick={logout}
