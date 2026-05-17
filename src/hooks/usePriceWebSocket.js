@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
 
-const TRACKED_SYMBOLS = new Set(['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'DOTUSDT', 'MATICUSDT', 'LINKUSDT', 'AVAXUSDT'])
+const TRACKED_SYMBOLS = new Set(['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'DOTUSDT', 'MATICUSDT', 'LINKUSDT'])
 
-// Generate combined stream URL for stats (!ticker@arr) and ultra-fast price ticks (kline_1s)
-const streams = ['!ticker@arr', ...Array.from(TRACKED_SYMBOLS).map(s => `${s.toLowerCase()}@kline_1s`)].join('/')
-const WS_URL = `wss://stream.binance.com:9443/stream?streams=${streams}`
+const WS_URL = 'ws://localhost:8080/api/market/ws/market'
 
 export function usePriceWebSocket() {
     const [prices, setPrices] = useState({})
@@ -20,40 +18,35 @@ export function usePriceWebSocket() {
         const connect = () => {
             ws = new WebSocket(WS_URL)
 
+            ws.onopen = () => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ symbols: Array.from(TRACKED_SYMBOLS) }))
+                }
+            }
+
             ws.onmessage = (event) => {
                 if (!isMounted) return
                 
-                const raw = JSON.parse(event.data)
-                // Binance combined stream payload wraps data in { stream: "...", data: ... }
-                const data = raw.data || raw
+                try {
+                    const data = JSON.parse(event.data)
+                    const symbol = data.symbol
 
-                const newPrices = {}
-                const newStats = {}
-                const newFlashes = {}
-                let hasFlashes = false
+                    if (!symbol || !TRACKED_SYMBOLS.has(symbol)) return
 
-                // 1. Handle !ticker@arr (Array) for 24h stats
-                if (Array.isArray(data)) {
-                    data.forEach((coin) => {
-                        const symbol = coin.s
-                        if (!TRACKED_SYMBOLS.has(symbol)) return
-                        
-                        newStats[symbol] = {
-                            change24h: parseFloat(coin.P),
-                            high24h: parseFloat(coin.h),
-                            low24h: parseFloat(coin.l),
-                            volume: parseFloat(coin.v)
+                    const currentPrice = parseFloat(data.lastPrice)
+                    
+                    const newPrices = { [symbol]: currentPrice }
+                    const newStats = {
+                        [symbol]: {
+                            change24h: parseFloat(data.changePct),
+                            high24h: parseFloat(data.high),
+                            low24h: parseFloat(data.low),
+                            volume: parseFloat(data.volume)
                         }
-                    })
-                    if (Object.keys(newStats).length > 0) setStats(s => ({ ...s, ...newStats }))
-                } 
-                // 2. Handle kline_1s (Object) for ultra-fast, second-by-second live price actions
-                else if (data.e === 'kline') {
-                    const symbol = data.s
-                    if (!TRACKED_SYMBOLS.has(symbol)) return
-
-                    const currentPrice = parseFloat(data.k.c)
-                    newPrices[symbol] = currentPrice
+                    }
+                    
+                    let hasFlashes = false
+                    const newFlashes = {}
 
                     const prev = prevPrices[symbol]
                     if (prev && currentPrice !== prev) {
@@ -64,6 +57,7 @@ export function usePriceWebSocket() {
                     prevPrices[symbol] = currentPrice
 
                     setPrices(p => ({ ...p, ...newPrices }))
+                    setStats(s => ({ ...s, ...newStats }))
 
                     if (hasFlashes) {
                         setFlashes(f => ({ ...f, ...newFlashes }))
@@ -74,6 +68,8 @@ export function usePriceWebSocket() {
                             setFlashes(f => ({ ...f, ...clearObj }))
                         }, 600)
                     }
+                } catch (err) {
+                    console.error('Error parsing WS message:', err)
                 }
             }
 

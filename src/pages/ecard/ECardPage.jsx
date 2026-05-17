@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'react-hot-toast'
 import VirtualCard from '../../components/ecard/VirtualCard'
 import { ecardAPI } from '../../services/api'
 import { formatINR, formatDate } from '../../utils/format'
@@ -6,11 +7,32 @@ import { formatINR, formatDate } from '../../utils/format'
 export default function ECardPage() {
     const [card, setCard] = useState(null)
     const [txs, setTxs] = useState([])
+    const [actionLoading, setActionLoading] = useState(false)
 
     useEffect(() => {
         ecardAPI.getCard().then((res) => setCard(res.data)).catch(() => { })
         ecardAPI.getTransactions().then((res) => setTxs(res.data || [])).catch(() => { })
     }, [])
+
+    const handleToggleStatus = async () => {
+        if (!card) return
+        setActionLoading(true)
+        try {
+            if (card.status === 'active') {
+                await ecardAPI.block()
+                toast.success('Card blocked successfully')
+                setCard({ ...card, status: 'blocked' })
+            } else {
+                await ecardAPI.unblock()
+                toast.success('Card unblocked successfully')
+                setCard({ ...card, status: 'active' })
+            }
+        } catch (err) {
+            toast.error(err.message || err || 'Failed to update card status')
+        } finally {
+            setActionLoading(false)
+        }
+    }
 
     return (
         <div className="max-w-4xl mx-auto space-y-10 animate-fade-up">
@@ -27,17 +49,27 @@ export default function ECardPage() {
                     <div className="w-full bg-brand-surface border border-brand-border rounded-2xl p-6 space-y-4 shadow-panel">
                         <div className="flex justify-between items-center border-b border-brand-border pb-3">
                             <span className="text-muted text-[10px] uppercase font-bold tracking-widest">Card Status</span>
-                            <span className="text-up font-mono text-[10px] font-bold uppercase tracking-widest bg-up/10 px-2 py-0.5 rounded-full border border-up/20">Active</span>
+                            <span className={`font-mono text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border ${card?.status === 'active' ? 'text-up bg-up/10 border-up/20' : 'text-down bg-down/10 border-down/20'}`}>
+                                {card?.status || 'UNKNOWN'}
+                            </span>
                         </div>
                         <div className="flex justify-between items-center border-b border-brand-border pb-3">
                             <span className="text-muted text-[10px] uppercase font-bold tracking-widest">Linked Wallet</span>
                             <span className="text-white font-mono text-xs font-bold uppercase">INR MAINNET</span>
                         </div>
-                        <div className="flex justify-between items-center">
+                        <div className="flex justify-between items-center border-b border-brand-border pb-3">
                             <span className="text-muted text-[10px] uppercase font-bold tracking-widest">Monthly Limit</span>
                             {/* TODO (API INTEGRATION): Fetch virtual card limit from backend if supported */}
                             <span className="text-white font-mono text-xs font-bold">{formatINR(100000)}</span>
                         </div>
+
+                        <button
+                            onClick={handleToggleStatus}
+                            disabled={actionLoading || !card}
+                            className={`w-full py-3 mt-2 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${card?.status === 'active' ? 'bg-down/10 text-down border border-down/30 hover:bg-down hover:text-white' : 'bg-up/10 text-up border border-up/30 hover:bg-up hover:text-white'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                            {actionLoading ? 'PROCESSING...' : (card?.status === 'active' ? 'BLOCK CARD' : 'UNBLOCK CARD')}
+                        </button>
                     </div>
                 </div>
 

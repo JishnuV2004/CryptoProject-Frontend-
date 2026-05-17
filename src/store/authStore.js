@@ -10,7 +10,13 @@ export const useAuthStore = create(
             setAuth: (user, token) => set({ user, token }),
             updateUser: (user) => set({ user }),
             toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
-            logout: () => {
+            logout: async () => {
+                try {
+                    const { authAPI } = await import('../services/api')
+                    await authAPI.logout()
+                } catch (err) {
+                    console.error('Logout API failed:', err)
+                }
                 set({ user: null, token: null })
                 window.location.href = '/auth/login'
             },

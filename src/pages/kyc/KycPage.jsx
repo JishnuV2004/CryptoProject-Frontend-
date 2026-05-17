@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
 import { toast } from 'react-hot-toast'
 import { kycAPI } from '../../services/api'
+import { useAuthStore } from '../../store/authStore'
 
 const STATUS_UI = {
     pending: {
@@ -11,6 +13,12 @@ const STATUS_UI = {
         msg: 'Your verification is currently in the review queue. Professional clearing takes 24-48 hours.',
     },
     verified: {
+        bg: 'bg-up/5 border-up/20',
+        text: 'text-up',
+        icon: '✓',
+        msg: 'Verification successful. Your account is now fully cleared for institutional-grade trading.',
+    },
+    approved: {
         bg: 'bg-up/5 border-up/20',
         text: 'text-up',
         icon: '✓',
@@ -91,7 +99,38 @@ function DropZone({ label, file, onDrop }) {
     )
 }
 
+function SelectedFilePreview({ label, file }) {
+    const [preview, setPreview] = useState(null)
+
+    useEffect(() => {
+        if (!file) {
+            setPreview(null)
+            return
+        }
+        if (file.type.startsWith('image/')) {
+            const objectUrl = URL.createObjectURL(file)
+            setPreview(objectUrl)
+            return () => URL.revokeObjectURL(objectUrl)
+        }
+    }, [file])
+
+    return (
+        <div className="border border-brand-border/40 bg-brand-panel/20 rounded-xl p-2 text-center flex flex-col justify-between items-center h-28">
+            <p className="text-[8px] uppercase tracking-widest text-muted font-bold mb-2">{label}</p>
+            {preview ? (
+                <img src={preview} alt={label} className="w-14 h-14 object-cover rounded-lg border border-brand-border" />
+            ) : (
+                <div className="w-14 h-14 bg-brand-panel rounded-lg flex items-center justify-center border border-brand-border text-muted text-[10px] font-sans font-semibold">
+                    PDF / FILE
+                </div>
+            )}
+        </div>
+    )
+}
+
 export default function KycPage() {
+    const navigate = useNavigate()
+    const { user, updateUser } = useAuthStore()
     const [status, setStatus] = useState(null)
     const [step, setStep] = useState(1)  // 1 = Personal, 2 = Banking, 3 = Files, 4 = Review
     const [loading, setLoading] = useState(false)
@@ -99,21 +138,52 @@ export default function KycPage() {
     const [formData, setFormData] = useState({
         full_name: '',
         dob: '',
-        aadhar_number: '',
-        pan_number: '',
-        bank_account_number: '',
+        aadhaar: '',
+        pan: '',
+        account_number: '',
         ifsc: ''
     })
 
     const [files, setFiles] = useState({
-        aadhar_front: null,
-        aadhar_back: null,
+        aadhaar_front: null,
+        aadhaar_back: null,
         pan_file: null,
         selfie: null
     })
 
     useEffect(() => {
-        kycAPI.getStatus().then((res) => setStatus(res.data?.kyc_status)).catch(() => { })
+        const fetchStatusAndData = async () => {
+            try {
+                const res = await kycAPI.getMe()
+                const kycStatus = res.data?.status || res.data?.kyc_status || 'not_submitted'
+                setStatus(kycStatus)
+                
+                if (user && user.kyc_status !== kycStatus) {
+                    updateUser({ ...user, kyc_status: kycStatus })
+                }
+
+                if (kycStatus === 'verified' || kycStatus === 'approved' || kycStatus === 'ok') {
+                    navigate('/market')
+                    return
+                }
+
+                if (kycStatus === 'rejected' && res.data) {
+                    const d = res.data
+                    setFormData({
+                        full_name: d.FullName || d.Name || d.full_name || '',
+                        dob: d.DOB || d.dob || '',
+                        aadhaar: d.AadhaarNumber || d.aadhaar || '',
+                        pan: d.PANNumber || d.pan || '',
+                        account_number: d.AccountNumber || d.account_number || '',
+                        ifsc: d.IFSCCode || d.ifsc || ''
+                    })
+                }
+            } catch (err) {
+                console.error('Error fetching KYC details:', err)
+                setStatus('not_submitted')
+            }
+        }
+        fetchStatusAndData()
     }, [])
 
     const handleTextChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value })
@@ -122,17 +192,30 @@ export default function KycPage() {
     const handleSubmit = async () => {
         setLoading(true)
         const form = new FormData()
-        Object.entries(formData).forEach(([key, val]) => form.append(key, val))
-        Object.entries(files).forEach(([key, file]) => {
-            if (file) form.append(key, file)
-        })
+        form.append('full_name', formData.full_name)
+        form.append('dob', formData.dob)
+        form.append('aadhaar', formData.aadhaar)
+        form.append('pan', formData.pan)
+        form.append('account_number', formData.account_number)
+        form.append('ifsc', formData.ifsc)
+        
+        if (files.aadhaar_front) form.append('aadhaar_front', files.aadhaar_front)
+        if (files.aadhaar_back) form.append('aadhaar_back', files.aadhaar_back)
+        if (files.pan_file) form.append('pan_file', files.pan_file)
+        if (files.selfie) form.append('selfie', files.selfie)
 
         try {
-            await kycAPI.upload(form)
+            const res = await kycAPI.submit(form)
+            if (res.success === false) {
+                throw new Error(res.message || 'Submission failed')
+            }
             setStatus('pending')
+            if (user) {
+                updateUser({ ...user, kyc_status: 'pending' })
+            }
             toast.success('KYC application submitted successfully!')
         } catch (err) {
-            toast.error(err || 'Upload failed')
+            toast.error(err.message || err || 'Submission failed')
         } finally {
             setLoading(false)
         }
@@ -140,6 +223,7 @@ export default function KycPage() {
 
     if (status && status !== 'not_submitted') {
         const s = STATUS_UI[status] || STATUS_UI.pending
+        const isApproved = status === 'verified' || status === 'approved'
         return (
             <div className="max-w-lg mx-auto mt-12 animate-fade-up">
                 <div className={`rounded-3xl border p-10 text-center shadow-panel ${s.bg}`}>
@@ -157,6 +241,14 @@ export default function KycPage() {
                         >
                             Restart Resubmission
                         </button>
+                    )}
+                    {isApproved && (
+                        <a
+                            href="/market"
+                            className="mt-8 inline-block px-8 py-3.5 bg-gold-gradient text-brand-bg text-xs rounded-xl font-bold uppercase tracking-widest shadow-gold-sm hover:scale-105 active:scale-95 transition-all"
+                        >
+                            GO TO DASHBOARD
+                        </a>
                     )}
                 </div>
             </div>
@@ -204,16 +296,16 @@ export default function KycPage() {
                             </div>
                             <div>
                                 <label className="text-muted text-[10px] uppercase font-bold mb-1 block tracking-widest">Aadhar Number</label>
-                                <input type="text" name="aadhar_number" value={formData.aadhar_number} onChange={handleTextChange} placeholder="0000 0000 0000" className="w-full bg-brand-panel border border-brand-border rounded-lg px-4 py-3 text-white text-sm font-mono focus:border-brand-gold transition-all" />
+                                <input type="text" name="aadhaar" value={formData.aadhaar} onChange={handleTextChange} placeholder="0000 0000 0000" className="w-full bg-brand-panel border border-brand-border rounded-lg px-4 py-3 text-white text-sm font-mono focus:border-brand-gold transition-all" />
                             </div>
                             <div className="md:col-span-2">
                                 <label className="text-muted text-[10px] uppercase font-bold mb-1 block tracking-widest">PAN Number</label>
-                                <input type="text" name="pan_number" value={formData.pan_number} onChange={handleTextChange} placeholder="ABCDE1234F" className="w-full bg-brand-panel border border-brand-border rounded-lg px-4 py-3 text-white text-sm font-mono uppercase focus:border-brand-gold transition-all" />
+                                <input type="text" name="pan" value={formData.pan} onChange={handleTextChange} placeholder="ABCDE1234F" className="w-full bg-brand-panel border border-brand-border rounded-lg px-4 py-3 text-white text-sm font-mono uppercase focus:border-brand-gold transition-all" />
                             </div>
                         </div>
                         <button
                             onClick={() => setStep(2)}
-                            disabled={!formData.full_name || !formData.dob || !formData.aadhar_number || !formData.pan_number}
+                            disabled={!formData.full_name || !formData.dob || !formData.aadhaar || !formData.pan}
                             className="w-full py-4 bg-gold-gradient text-brand-bg rounded-xl font-bold text-xs uppercase tracking-[0.2em] disabled:opacity-40 hover:opacity-95 active:scale-[0.98] transition-all shadow-gold-sm mt-4"
                         >
                             Next: Banking Details →
@@ -225,7 +317,7 @@ export default function KycPage() {
                     <div className="space-y-6 animate-slide-in">
                         <div>
                             <label className="text-muted text-[10px] uppercase font-bold mb-1 block tracking-widest">Bank Account Number</label>
-                            <input type="text" name="bank_account_number" value={formData.bank_account_number} onChange={handleTextChange} placeholder="Account Number" className="w-full bg-brand-panel border border-brand-border rounded-lg px-4 py-3 text-white text-sm font-mono focus:border-brand-gold transition-all" />
+                            <input type="text" name="account_number" value={formData.account_number} onChange={handleTextChange} placeholder="Account Number" className="w-full bg-brand-panel border border-brand-border rounded-lg px-4 py-3 text-white text-sm font-mono focus:border-brand-gold transition-all" />
                         </div>
                         <div>
                             <label className="text-muted text-[10px] uppercase font-bold mb-1 block tracking-widest">IFSC Code</label>
@@ -237,7 +329,7 @@ export default function KycPage() {
                             </button>
                             <button
                                 onClick={() => setStep(3)}
-                                disabled={!formData.bank_account_number || !formData.ifsc}
+                                disabled={!formData.account_number || !formData.ifsc}
                                 className="flex-[2] py-4 bg-gold-gradient text-brand-bg rounded-xl font-bold text-xs uppercase tracking-[0.2em] disabled:opacity-40 hover:opacity-95 active:scale-[0.98] transition-all shadow-gold-sm"
                             >
                                 Next: Document Uploads →
@@ -249,8 +341,8 @@ export default function KycPage() {
                 {step === 3 && (
                     <div className="space-y-6 animate-slide-in">
                         <div className="grid grid-cols-2 gap-4">
-                            <DropZone label="Aadhar Front" file={files.aadhar_front} onDrop={(f) => handleFileChange('aadhar_front', f)} />
-                            <DropZone label="Aadhar Back" file={files.aadhar_back} onDrop={(f) => handleFileChange('aadhar_back', f)} />
+                            <DropZone label="Aadhar Front" file={files.aadhaar_front} onDrop={(f) => handleFileChange('aadhaar_front', f)} />
+                            <DropZone label="Aadhar Back" file={files.aadhaar_back} onDrop={(f) => handleFileChange('aadhaar_back', f)} />
                             <DropZone label="PAN Card" file={files.pan_file} onDrop={(f) => handleFileChange('pan_file', f)} />
                             <DropZone label="Selfie Image" file={files.selfie} onDrop={(f) => handleFileChange('selfie', f)} />
                         </div>
@@ -260,7 +352,7 @@ export default function KycPage() {
                             </button>
                             <button
                                 onClick={() => setStep(4)}
-                                disabled={!files.aadhar_front || !files.aadhar_back || !files.pan_file || !files.selfie}
+                                disabled={!files.aadhaar_front || !files.aadhaar_back || !files.pan_file || !files.selfie}
                                 className="flex-[2] py-4 bg-gold-gradient text-brand-bg rounded-xl font-bold text-xs uppercase tracking-[0.2em] disabled:opacity-40 hover:opacity-95 active:scale-[0.98] transition-all shadow-gold-sm"
                             >
                                 Review Application →
@@ -276,23 +368,23 @@ export default function KycPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div><p className="text-muted text-[9px] uppercase tracking-widest">Name</p><p className="text-white text-xs font-bold">{formData.full_name}</p></div>
                                 <div><p className="text-muted text-[9px] uppercase tracking-widest">DOB</p><p className="text-white text-xs font-bold">{formData.dob}</p></div>
-                                <div><p className="text-muted text-[9px] uppercase tracking-widest">Aadhar</p><p className="text-white text-xs font-mono">{formData.aadhar_number}</p></div>
-                                <div><p className="text-muted text-[9px] uppercase tracking-widest">PAN</p><p className="text-white text-xs font-mono">{formData.pan_number.toUpperCase()}</p></div>
+                                <div><p className="text-muted text-[9px] uppercase tracking-widest">Aadhar</p><p className="text-white text-xs font-mono">{formData.aadhaar}</p></div>
+                                <div><p className="text-muted text-[9px] uppercase tracking-widest">PAN</p><p className="text-white text-xs font-mono">{formData.pan?.toUpperCase()}</p></div>
                             </div>
                             
                             <h4 className="text-brand-gold text-[10px] uppercase font-bold tracking-widest border-b border-brand-border/50 pb-2 mt-6">Banking Details</h4>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><p className="text-muted text-[9px] uppercase tracking-widest">Account</p><p className="text-white text-xs font-mono">{formData.bank_account_number}</p></div>
-                                <div><p className="text-muted text-[9px] uppercase tracking-widest">IFSC</p><p className="text-white text-xs font-mono">{formData.ifsc.toUpperCase()}</p></div>
+                                <div><p className="text-muted text-[9px] uppercase tracking-widest">Account</p><p className="text-white text-xs font-mono">{formData.account_number}</p></div>
+                                <div><p className="text-muted text-[9px] uppercase tracking-widest">IFSC</p><p className="text-white text-xs font-mono">{formData.ifsc?.toUpperCase()}</p></div>
                             </div>
 
-                            <h4 className="text-brand-gold text-[10px] uppercase font-bold tracking-widest border-b border-brand-border/50 pb-2 mt-6">Uploaded Files</h4>
-                            <div className="grid grid-cols-2 gap-2 text-xs font-mono text-white">
-                                <p>✓ Aadhar Front</p>
-                                <p>✓ Aadhar Back</p>
-                                <p>✓ PAN Card</p>
-                                <p>✓ Selfie</p>
-                            </div>
+                             <h4 className="text-brand-gold text-[10px] uppercase font-bold tracking-widest border-b border-brand-border/50 pb-2 mt-6">Compliance File Previews</h4>
+                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
+                                 <SelectedFilePreview label="Aadhaar Front" file={files.aadhaar_front} />
+                                 <SelectedFilePreview label="Aadhaar Back" file={files.aadhaar_back} />
+                                 <SelectedFilePreview label="PAN Card" file={files.pan_file} />
+                                 <SelectedFilePreview label="Selfie ID" file={files.selfie} />
+                             </div>
                         </div>
 
                         <div className="flex gap-4 pt-2">
