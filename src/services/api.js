@@ -69,22 +69,26 @@ export const marketAPI = {
 
 // ── Trade ─────────────────────────────────────────
 export const tradeAPI = {
-    marketOrder: (body) => api.post('/trade/market', body),
-    createOrder: (body) => api.post('/orders', body),
-    getOrders: (status) => Promise.resolve({
-        data: status === 'pending' ? [
-            { id: 1, coin: 'BTC', order_type: 'LIMIT', side: 'buy', quantity: 0.5, limit_price: 3500000, status: 'pending', created_at: new Date().toISOString() }
-        ] : [
-            { id: 2, coin: 'ETH', order_type: 'MARKET', side: 'sell', quantity: 2.0, target_price: 150000, status: 'filled', created_at: new Date().toISOString() }
-        ]
-    }),
-    cancelOrder: (id) => Promise.resolve({ success: true }),
+    createOrder: (body) => api.post('/trade/order', body),
+    getOrders: (params) => api.get('/trade/orders', { params }),
+    getOrder: (id) => api.get(`/trade/order/${id}`),
+    cancelOrder: (id) => api.delete(`/trade/order/${id}`),
+    getTrades: (params) => api.get('/trade/trades', { params }),
+    getOrderFills: (id) => api.get(`/trade/order/${id}/fills`),
+    getOrderBook: (symbol) => api.get(`/trade/orderbook?symbol=${symbol}`),
+    getTradeHistory: (symbol, limit = 20) => api.get(`/trade/history?symbol=${symbol}&limit=${limit}`),
 }
 
 // ── Wallet ────────────────────────────────────────
 export const walletAPI = {
-    getWallets: () => Promise.resolve({ data: { balance: 1250000, wallets: [{ coin: 'BTC', balance: 0.5 }, { coin: 'ETH', balance: 2.0 }] } }),
-    getTransactions: (params) => Promise.resolve({ data: [] }),
+    getMe: () => api.get('/wallet/me'),
+    getBalance: () => api.get('/wallet/balance'),
+    getTransactions: () => api.get('/wallet/transactions'),
+    deposit: (body) => api.post('/wallet/deposit', body),
+    verifyDeposit: (body) => api.post('/wallet/verify-deposit', body),
+    withdraw: (body) => api.post('/wallet/withdraw', body),
+    setPin: (body) => api.post('/wallet/set-pin', body),
+    changePin: (body) => api.post('/wallet/change-pin', body),
 }
 
 // ── Payment ───────────────────────────────────────
@@ -145,6 +149,50 @@ export const adminAPI = {
     adjustBalance: (id, body) => api.put(`/admin/users/${id}/balance`, body),
     getWithdrawals: () => api.get('/admin/withdrawals'),
     reviewWithdrawal: (id, body) => api.put(`/admin/withdrawals/${id}`, body),
+    
+    // Wallet Actions
+    blockWallet: (userId) => api.post(`/admin/wallet/${userId}/block`),
+    freezeWallet: (userId) => api.post(`/admin/wallet/${userId}/freeze`),
+    unblockWallet: (userId) => api.post(`/admin/wallet/${userId}/unblock`),
+    creditWallet: (userId, body) => api.post(`/admin/wallet/${userId}/credit`, body),
+}
+
+// ── Crypto Wallet (User) ──────────────────────────
+export const cryptoWalletAPI = {
+    createWallet: (body) => api.post('/crypto-wallet/', body),
+    getWallets: () => api.get('/crypto-wallet/'),
+    getSummary: () => api.get('/crypto-wallet/summary'),
+    getTransactions: (params) => api.get('/crypto-wallet/transactions', { params }),
+    getLocks: () => api.get('/crypto-wallet/locks'),
+    getWallet: (symbol) => api.get(`/crypto-wallet/${symbol}`),
+}
+
+// ── Crypto Wallet (Admin) ─────────────────────────
+export const cryptoAdminAPI = {
+    getAllWallets: () => api.get('/admin/crypto-wallet/'),
+    getUserWallets: (userId) => api.get(`/admin/crypto-wallet/${userId}`),
+    getUserTransactions: (userId, params) => api.get(`/admin/crypto-wallet/${userId}/transactions`, { params }),
+    getUserWalletBySymbol: (userId, symbol) => api.get(`/admin/crypto-wallet/${userId}/${symbol}`),
+    credit: (userId, body) => api.post(`/admin/crypto-wallet/${userId}/credit`, body),
+    debit: (userId, body) => api.post(`/admin/crypto-wallet/${userId}/debit`, body),
+    freeze: (userId) => api.post(`/admin/crypto-wallet/${userId}/freeze`),
+    unfreeze: (userId) => api.post(`/admin/crypto-wallet/${userId}/unfreeze`),
+    getAllTransactions: (params) => api.get('/admin/crypto-wallet/transactions', { params }),
+}
+
+// ── Assets (Global & Admin) ───────────────────────
+export const assetAPI = {
+    getAssets: () => api.get('/assets'),
+    createAsset: (body) => api.post('/admin/assets/', body),
+    updateAsset: (id, body) => api.put(`/admin/assets/${id}`, body),
+    updateStatus: (id, body) => api.put(`/admin/assets/${id}/status`, body),
+}
+
+// ── Trade Engine (Admin) ──────────────────────────
+export const tradeAdminAPI = {
+    getAllOrders: (params) => api.get('/admin/trade/orders', { params }),
+    getAllTrades: (params) => api.get('/admin/trade/trades', { params }),
+    getUserOrders: (userId, params) => api.get(`/admin/trade/user/${userId}/orders`, { params }),
 }
 
 export default api

@@ -1,18 +1,27 @@
 import { useState } from 'react'
 import { toast } from 'react-hot-toast'
-import { paymentAPI } from '../../services/api'
+import { walletAPI } from '../../services/api'
 
-export default function WithdrawModal({ onClose }) {
-    const [form, setForm] = useState({ amount: '', bank_name: '', account_number: '', ifsc: '' })
+export default function WithdrawModal({ onClose, onSuccess }) {
+    const [form, setForm] = useState({ amount: '', bank_name: '', account_number: '', ifsc: '', pin: '' })
     const [loading, setLoading] = useState(false)
 
     const handleWithdraw = async (e) => {
         e.preventDefault()
         if (parseFloat(form.amount) < 500) return toast.error('Minimum withdrawal is ₹500')
+        if (!form.pin || form.pin.length !== 4) return toast.error('Valid 4-digit PIN required')
+        
         setLoading(true)
         try {
-            await paymentAPI.withdraw(form)
+            await walletAPI.withdraw({
+                amount: parseFloat(form.amount) * 100,
+                bank_name: form.bank_name,
+                account_number: form.account_number,
+                ifsc: form.ifsc,
+                pin: form.pin
+            })
             toast.success('Withdrawal request initiated!')
+            if (onSuccess) onSuccess()
             onClose()
         } catch (err) {
             toast.error(err || 'Failed to initiate withdrawal')
@@ -73,6 +82,17 @@ export default function WithdrawModal({ onClose }) {
                                 onChange={(e) => setForm({ ...form, ifsc: e.target.value })}
                                 placeholder="HDFC0001234"
                                 className="w-full bg-brand-panel border border-brand-border rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-brand-gold transition-all"
+                                required
+                            />
+                        </div>
+                        <div className="col-span-2">
+                            <label className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] block mb-1">Wallet PIN</label>
+                            <input
+                                type="password"
+                                value={form.pin}
+                                onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                                placeholder="****"
+                                className="w-full bg-brand-panel border border-brand-border rounded-xl px-4 py-3 text-white font-mono tracking-[0.5em] text-center text-lg focus:border-brand-gold transition-all"
                                 required
                             />
                         </div>
