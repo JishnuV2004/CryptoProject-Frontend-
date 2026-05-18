@@ -51,6 +51,21 @@
 .text-flash-up { animation: text-flash-up 0.8s ease; }
 .text-flash-down { animation: text-flash-down 0.8s ease; }
 
+@keyframes animate-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Hide TradingView Attribution Logo */
+.hide-tv-logo a, .hide-tv-logo #tv-attr-logo, .hide-tv-logo div[id^="tv-attr-logo"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  width: 0 !important;
+}
+
 @keyframes text-flash-up {
   0%, 100% { color: inherit; }
   50% { color: #15B06D; font-weight: 600; }
