@@ -17,19 +17,63 @@ api.interceptors.request.use((config) => {
     return config
 })
 
-// Unwrap response envelope. On 401, clear auth and redirect.
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+    failedQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve(token);
+        }
+    });
+    failedQueue = [];
+};
+
+// Unwrap response envelope. On 401, attempt refresh, or clear auth and redirect.
 api.interceptors.response.use(
     (res) => res.data,          // returns { success, data, error }
-    (err) => {
+    async (err) => {
+        const originalConfig = err.config;
+
+        if (err.response?.status === 401 && originalConfig && !originalConfig._retry && originalConfig.url !== '/auth/refresh') {
+            if (isRefreshing) {
+                return new Promise((resolve, reject) => {
+                    failedQueue.push({ resolve, reject });
+                }).then(() => {
+                    return api(originalConfig);
+                }).catch((err) => {
+                    return Promise.reject(err);
+                });
+            }
+
+            originalConfig._retry = true;
+            isRefreshing = true;
+
+            try {
+                await api.post('/auth/refresh', {}, { withCredentials: true });
+                processQueue(null);
+                return api(originalConfig);
+            } catch (refreshErr) {
+                processQueue(refreshErr, null);
+                localStorage.removeItem('binancesim-auth');
+                window.location.href = '/auth/login';
+                return Promise.reject(refreshErr);
+            } finally {
+                isRefreshing = false;
+            }
+        }
+
         if (err.response?.status === 401) {
-            localStorage.removeItem('binancesim-auth')
-            window.location.href = '/auth/login'
+            localStorage.removeItem('binancesim-auth');
+            window.location.href = '/auth/login';
         }
         
-        const data = err.response?.data
-        const errorMsg = data?.message || (typeof data?.error === 'string' ? data.error : 'Something went wrong')
+        const data = err.response?.data;
+        const errorMsg = data?.message || (typeof data?.error === 'string' ? data.error : 'Something went wrong');
         
-        return Promise.reject(errorMsg)
+        return Promise.reject(errorMsg);
     }
 )
 
@@ -145,6 +189,14 @@ export const adminAPI = {
     adjustBalance: (id, body) => api.put(`/admin/users/${id}/balance`, body),
     getWithdrawals: () => api.get('/admin/withdrawals'),
     reviewWithdrawal: (id, body) => api.put(`/admin/withdrawals/${id}`, body),
-}
 
+    // RBAC
+    // RBAC
+    createPermission: (body) => api.post('/admin/permission', body),
+    getPermissions: () => api.get('/admin/permissions'),
+    toggleRolePermission: (body) => api.patch('/admin/roles/toggle', body),
+    createRole: (body) => api.post('/admin/role', body),
+    getRoles: () => api.get('/admin/roles'),
+    getRolePermissions: (name) => api.get(`/admin/roles/${name}/permissions`),
+}
 export default api

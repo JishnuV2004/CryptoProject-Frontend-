@@ -119,7 +119,7 @@ export default function CandlestickChart({ symbol }) {
                     <span className="text-[10px] text-brand-gold font-bold uppercase tracking-widest">Technicals</span>
                 </div>
             </div>
-            <div ref={containerRef} className="w-full" />
+            <div ref={containerRef} className="w-full hide-tv-logo relative" />
         </div>
     )
 }

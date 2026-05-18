@@ -17,6 +17,7 @@ const ADMIN_NAV = [
     { to: '/admin/users', icon: '👥', label: 'Users' },
     { to: '/admin/kyc', icon: '🛡️', label: 'KYC' },
     { to: '/admin/wallets', icon: '💼', label: 'Wallets' },
+    { to: '/admin/rbac', icon: '🔑', label: 'Access Control' },
     { to: '/admin/config', icon: '⚙️', label: 'Settings' },
 ]
 
