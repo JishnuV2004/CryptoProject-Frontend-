@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { toast } from 'react-hot-toast'
-import { paymentAPI } from '../../services/api'
+import { walletAPI } from '../../services/api'
 
-export default function DepositModal({ onClose }) {
+export default function DepositModal({ onClose, onSuccess }) {
     const [amount, setAmount] = useState('')
     const [loading, setLoading] = useState(false)
 
@@ -10,19 +10,30 @@ export default function DepositModal({ onClose }) {
         if (!amount || parseFloat(amount) < 100) return toast.error('Minimum deposit is ₹100')
         setLoading(true)
         try {
-            const res = await paymentAPI.createOrder(parseFloat(amount))
-            const orderId = res.data.razorpay_order_id
+            const res = await walletAPI.deposit({ amount: parseFloat(amount) * 100 })
+            const orderId = res.data?.order_id || res.data?.razorpay_order_id || res.data?.id
 
             const rzp = new window.Razorpay({
                 key: import.meta.env.VITE_RAZORPAY_KEY_ID,
                 amount: parseFloat(amount) * 100,  // paise
                 currency: 'INR',
-                name: 'BinanceSim',
+                name: 'Crytinox',
                 description: 'Add money to INR wallet',
                 order_id: orderId,
-                handler: () => {
-                    toast.success('Payment received! Wallet will update shortly.')
-                    onClose()
+                handler: async (response) => {
+                    toast.loading('Verifying payment...', { id: 'verify' })
+                    try {
+                        await walletAPI.verifyDeposit({
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        })
+                        toast.success('Payment received and verified!', { id: 'verify' })
+                        if (onSuccess) onSuccess()
+                        onClose()
+                    } catch (err) {
+                        toast.error(err || 'Failed to verify payment', { id: 'verify' })
+                    }
                 },
                 prefill: { email: 'user@example.com' },
                 theme: { color: '#C9A84C' },

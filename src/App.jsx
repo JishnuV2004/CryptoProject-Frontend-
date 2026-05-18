@@ -23,7 +23,8 @@ import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminKyc from './pages/admin/AdminKyc'
 import AdminWallets from './pages/admin/AdminWallets'
-import AdminRBAC from './pages/admin/AdminRBAC'
+import AdminAssets from './pages/admin/AdminAssets'
+import AdminTrades from './pages/admin/AdminTrades'
 import AdminConfig from './pages/admin/AdminConfig'
 
 function AuthGuard({ children }) {
@@ -125,7 +126,8 @@ export default function App() {
                     <Route path="/market" element={<AuthGuard><MarketPage /></AuthGuard>} />
                     <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
                     <Route path="/kyc" element={<AuthGuard><KycPage /></AuthGuard>} />
-                    <Route path="/wallet" element={<AuthGuard><WalletPage /></AuthGuard>} />
+                    <Route path="/wallet" element={<Navigate to="/wallet/cash" replace />} />
+                    <Route path="/wallet/:tab" element={<AuthGuard><WalletPage /></AuthGuard>} />
                     <Route path="/ecard" element={<AuthGuard><ECardPage /></AuthGuard>} />
                     <Route path="/staking" element={<AuthGuard><StakingPage /></AuthGuard>} />
                     <Route path="/leaderboard" element={<AuthGuard><LeaderboardPage /></AuthGuard>} />
@@ -136,7 +138,8 @@ export default function App() {
                     <Route path="/admin/users" element={<AdminGuard><AdminUsers /></AdminGuard>} />
                     <Route path="/admin/kyc" element={<AdminGuard><AdminKyc /></AdminGuard>} />
                     <Route path="/admin/wallets" element={<AdminGuard><AdminWallets /></AdminGuard>} />
-                    <Route path="/admin/rbac" element={<AdminGuard><AdminRBAC /></AdminGuard>} />
+                    <Route path="/admin/assets" element={<AdminGuard><AdminAssets /></AdminGuard>} />
+                    <Route path="/admin/trades" element={<AdminGuard><AdminTrades /></AdminGuard>} />
                     <Route path="/admin/config" element={<AdminGuard><AdminConfig /></AdminGuard>} />
                 </Route>
             </Routes>
