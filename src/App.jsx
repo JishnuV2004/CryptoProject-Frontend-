@@ -25,6 +25,7 @@ import AdminKyc from './pages/admin/AdminKyc'
 import AdminWallets from './pages/admin/AdminWallets'
 import AdminAssets from './pages/admin/AdminAssets'
 import AdminTrades from './pages/admin/AdminTrades'
+import AdminRBAC from './pages/admin/AdminRBAC'
 import AdminConfig from './pages/admin/AdminConfig'
 import AdminRBAC from './pages/admin/AdminRBAC'
 
