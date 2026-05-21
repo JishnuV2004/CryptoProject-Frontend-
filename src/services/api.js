@@ -199,6 +199,14 @@ export const adminAPI = {
     freezeWallet: (userId) => api.post(`/admin/wallet/${userId}/freeze`),
     unblockWallet: (userId) => api.post(`/admin/wallet/${userId}/unblock`),
     creditWallet: (userId, body) => api.post(`/admin/wallet/${userId}/credit`, body),
+
+    // RBAC
+    createPermission: (body) => api.post('/admin/permission', body),
+    getPermissions: () => api.get('/admin/permissions'),
+    toggleRolePermission: (body) => api.patch('/admin/roles/toggle', body),
+    createRole: (body) => api.post('/admin/role', body),
+    getRoles: () => api.get('/admin/roles'),
+    getRolePermissions: (name) => api.get(`/admin/roles/${name}/permissions`),
 }
 
 // ── Crypto Wallet (User) ──────────────────────────
@@ -239,13 +247,4 @@ export const tradeAdminAPI = {
     getUserOrders: (userId, params) => api.get(`/admin/trade/user/${userId}/orders`, { params }),
 }
 
-    // RBAC
-    // RBAC
-    createPermission: (body) => api.post('/admin/permission', body),
-    getPermissions: () => api.get('/admin/permissions'),
-    toggleRolePermission: (body) => api.patch('/admin/roles/toggle', body),
-    createRole: (body) => api.post('/admin/role', body),
-    getRoles: () => api.get('/admin/roles'),
-    getRolePermissions: (name) => api.get(`/admin/roles/${name}/permissions`),
-}
 export default api

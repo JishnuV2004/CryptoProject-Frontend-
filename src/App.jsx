@@ -25,6 +25,7 @@ import AdminKyc from './pages/admin/AdminKyc'
 import AdminWallets from './pages/admin/AdminWallets'
 import AdminAssets from './pages/admin/AdminAssets'
 import AdminTrades from './pages/admin/AdminTrades'
+import AdminRBAC from './pages/admin/AdminRBAC'
 import AdminConfig from './pages/admin/AdminConfig'
 
 function AuthGuard({ children }) {
@@ -140,6 +141,7 @@ export default function App() {
                     <Route path="/admin/wallets" element={<AdminGuard><AdminWallets /></AdminGuard>} />
                     <Route path="/admin/assets" element={<AdminGuard><AdminAssets /></AdminGuard>} />
                     <Route path="/admin/trades" element={<AdminGuard><AdminTrades /></AdminGuard>} />
+                    <Route path="/admin/rbac" element={<AdminGuard><AdminRBAC /></AdminGuard>} />
                     <Route path="/admin/config" element={<AdminGuard><AdminConfig /></AdminGuard>} />
                 </Route>
             </Routes>

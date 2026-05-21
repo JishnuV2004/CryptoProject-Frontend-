@@ -20,6 +20,7 @@ const ADMIN_NAV = [
     { to: '/admin/wallets', icon: '💼', label: 'Wallets' },
     { to: '/admin/assets', icon: '🪙', label: 'Assets' },
     { to: '/admin/trades', icon: '📈', label: 'Trades' },
+    { to: '/admin/rbac', icon: '🔑', label: 'Access Control' },
     { to: '/admin/config', icon: '⚙️', label: 'Settings' },
 ]
 
