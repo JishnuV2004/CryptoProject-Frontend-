@@ -1,10 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'react-hot-toast'
-import { walletAPI } from '../../services/api'
+import { walletAPI, kycAPI } from '../../services/api'
 
 export default function WithdrawModal({ onClose, onSuccess }) {
-    const [form, setForm] = useState({ amount: '', bank_name: '', account_number: '', ifsc: '', pin: '' })
+    const [form, setForm] = useState({ amount: '', pin: '' })
+    const [kycDetails, setKycDetails] = useState(null)
+    const [loadingKyc, setLoadingKyc] = useState(true)
     const [loading, setLoading] = useState(false)
+
+    useEffect(() => {
+        const fetchKyc = async () => {
+            try {
+                const res = await kycAPI.getMe()
+                if (res.success && res.data) {
+                    setKycDetails(res.data)
+                }
+            } catch (err) {
+                console.error('Failed to load bank details:', err)
+            } finally {
+                setLoadingKyc(false)
+            }
+        }
+        fetchKyc()
+    }, [])
 
     const handleWithdraw = async (e) => {
         e.preventDefault()
@@ -13,14 +31,11 @@ export default function WithdrawModal({ onClose, onSuccess }) {
         
         setLoading(true)
         try {
-            await walletAPI.withdraw({
-                amount: parseFloat(form.amount) * 100,
-                bank_name: form.bank_name,
-                account_number: form.account_number,
-                ifsc: form.ifsc,
+            const res = await walletAPI.withdraw({
+                amount: Math.round(parseFloat(form.amount) * 100),
                 pin: form.pin
             })
-            toast.success('Withdrawal request initiated!')
+            toast.success(res?.message || 'Withdrawal request initiated!')
             if (onSuccess) onSuccess()
             onClose()
         } catch (err) {
@@ -28,6 +43,14 @@ export default function WithdrawModal({ onClose, onSuccess }) {
         } finally {
             setLoading(false)
         }
+    }
+
+    const formatMaskedAccount = (acc) => {
+        if (!acc) return '•••• •••• ••••'
+        if (acc.length > 4) {
+            return `•••• •••• ${acc.slice(-4)}`
+        }
+        return acc
     }
 
     return (
@@ -39,78 +62,78 @@ export default function WithdrawModal({ onClose, onSuccess }) {
                     <button onClick={onClose} className="text-muted hover:text-white transition-colors text-xl">✕</button>
                 </div>
 
-                <form onSubmit={handleWithdraw} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="col-span-2">
-                            <label className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] block mb-1">Amount (INR)</label>
-                            <input
-                                type="number"
-                                value={form.amount}
-                                onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                                placeholder="Min ₹500"
-                                className="w-full bg-brand-panel border border-brand-border rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-brand-gold transition-all"
-                                required
-                            />
-                        </div>
-                        <div className="col-span-2">
-                            <label className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] block mb-1">Bank Name</label>
-                            <input
-                                type="text"
-                                value={form.bank_name}
-                                onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
-                                placeholder="e.g. HDFC Bank"
-                                className="w-full bg-brand-panel border border-brand-border rounded-xl px-4 py-3 text-white text-sm focus:border-brand-gold transition-all"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] block mb-1">Account Number</label>
-                            <input
-                                type="password"
-                                value={form.account_number}
-                                onChange={(e) => setForm({ ...form, account_number: e.target.value })}
-                                placeholder="••••••••••••"
-                                className="w-full bg-brand-panel border border-brand-border rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-brand-gold transition-all"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] block mb-1">IFSC Code</label>
-                            <input
-                                type="text"
-                                value={form.ifsc}
-                                onChange={(e) => setForm({ ...form, ifsc: e.target.value })}
-                                placeholder="HDFC0001234"
-                                className="w-full bg-brand-panel border border-brand-border rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-brand-gold transition-all"
-                                required
-                            />
-                        </div>
-                        <div className="col-span-2">
-                            <label className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] block mb-1">Wallet PIN</label>
-                            <input
-                                type="password"
-                                value={form.pin}
-                                onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                                placeholder="****"
-                                className="w-full bg-brand-panel border border-brand-border rounded-xl px-4 py-3 text-white font-mono tracking-[0.5em] text-center text-lg focus:border-brand-gold transition-all"
-                                required
-                            />
-                        </div>
+                {loadingKyc ? (
+                    <div className="py-12 text-center text-muted animate-pulse font-mono text-xs uppercase tracking-widest">
+                        Retrieving Settlement Profile...
                     </div>
+                ) : (
+                    <form onSubmit={handleWithdraw} className="space-y-6">
+                        {/* Target Account Display */}
+                        <div className="bg-brand-panel/40 border border-brand-border rounded-2xl p-4 space-y-3">
+                            <p className="text-brand-gold text-[10px] uppercase font-bold tracking-[0.2em]">Settlement Destination</p>
+                            
+                            {kycDetails ? (
+                                <div className="space-y-2 font-mono text-xs text-white">
+                                    <div className="flex justify-between">
+                                        <span className="text-muted uppercase text-[9px] tracking-wider">Beneficiary:</span>
+                                        <span className="font-bold uppercase">{kycDetails.FullName || kycDetails.full_name}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted uppercase text-[9px] tracking-wider">Account:</span>
+                                        <span className="font-bold">{formatMaskedAccount(kycDetails.AccountNumber || kycDetails.account_number)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted uppercase text-[9px] tracking-wider">IFSC Code:</span>
+                                        <span className="font-bold uppercase">{kycDetails.IFSCCode || kycDetails.ifsc}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-2 text-down text-xs font-bold uppercase tracking-wider">
+                                    No verified bank details found. Please complete KYC.
+                                </div>
+                            )}
+                        </div>
 
-                    <p className="text-[10px] text-muted font-bold uppercase tracking-widest text-center py-2">
-                        Withdrawals are processed within 2-3 business days.
-                    </p>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] block mb-1">Amount (INR)</label>
+                                <input
+                                    type="number"
+                                    value={form.amount}
+                                    onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                                    placeholder="Min ₹500"
+                                    className="w-full bg-brand-panel border border-brand-border rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-brand-gold transition-all"
+                                    required
+                                />
+                            </div>
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-4 bg-brand-panel border border-brand-border text-white font-bold text-xs uppercase tracking-[0.2em]
-                       rounded-xl hover:bg-brand-gold hover:text-brand-bg hover:border-brand-gold transition-all active:scale-[0.98] disabled:opacity-50 shadow-lg"
-                    >
-                        {loading ? 'PROCESSING...' : 'REQUEST WITHDRAWAL'}
-                    </button>
-                </form>
+                            <div>
+                                <label className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] block mb-1">Wallet PIN</label>
+                                <input
+                                    type="password"
+                                    value={form.pin}
+                                    onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                                    placeholder="****"
+                                    className="w-full bg-brand-panel border border-brand-border rounded-xl px-4 py-3 text-white font-mono tracking-[0.5em] text-center text-lg focus:border-brand-gold transition-all"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <p className="text-[10px] text-muted font-bold uppercase tracking-widest text-center">
+                            Withdrawals are processed within 2-3 business days.
+                        </p>
+
+                        <button
+                            type="submit"
+                            disabled={loading || !kycDetails}
+                            className="w-full py-4 bg-brand-panel border border-brand-border text-white font-bold text-xs uppercase tracking-[0.2em]
+                           rounded-xl hover:bg-brand-gold hover:text-brand-bg hover:border-brand-gold transition-all active:scale-[0.98] disabled:opacity-50 shadow-lg"
+                        >
+                            {loading ? 'PROCESSING...' : 'REQUEST WITHDRAWAL'}
+                        </button>
+                    </form>
+                )}
             </div>
         </div>
     )

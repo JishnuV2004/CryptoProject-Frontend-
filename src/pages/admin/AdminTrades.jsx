@@ -18,7 +18,8 @@ export default function AdminTrades() {
             // Load users for mapping
             if (users.length === 0) {
                 const uRes = await adminAPI.getUsers().catch(() => ({ data: [] }))
-                setUsers(uRes?.data || [])
+                const clientsOnly = (uRes?.data || []).filter(u => (u.Role || u.role) !== 'admin')
+                setUsers(clientsOnly)
             }
 
             if (activeTab === 'orders') {

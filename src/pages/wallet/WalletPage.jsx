@@ -93,38 +93,15 @@ export default function WalletPage() {
             const cryptoData = Array.isArray(cryptoRes) ? cryptoRes : (cryptoRes?.data || [])
             setCryptoWalletsRaw(cryptoData)
 
-            const walletMap = new Map()
+            // Populate ONLY the crypto wallets the user has actually created
             cryptoData.forEach(w => {
-                const sym = w.Asset?.Symbol || w.Asset?.symbol
-                if (sym) walletMap.set(sym, w)
-            })
-
-            // Populate all active platform assets so user sees every available coin in portfolio
-            activeAssets.forEach(a => {
-                const sym = a.Symbol || a.symbol
-                const name = a.Name || a.name || sym
-                const precision = a.Precision !== undefined ? a.Precision : 8
-                const w = walletMap.get(sym)
-
-                combined.push({
-                    currency: sym,
-                    name: name,
-                    precision: precision,
-                    balance: w ? (w.Balance !== undefined ? w.Balance : (w.balance || 0)) : 0,
-                    reserved_balance: w ? (w.Locked !== undefined ? w.Locked : (w.locked || 0)) : 0,
-                    isCrypto: true,
-                    status: w ? (w.Status || w.status || 'active') : 'active'
-                })
-            })
-
-            // Also add any crypto wallets user has that might not be in activeAssets list
-            cryptoData.forEach(w => {
-                const sym = w.Asset?.Symbol || w.Asset?.symbol
-                if (sym && !activeAssets.some(a => (a.Symbol || a.symbol) === sym)) {
+                const sym = w.Asset?.Symbol || w.Asset?.symbol || w.Symbol || w.symbol
+                if (sym) {
+                    const matchedAsset = activeAssets.find(a => (a.Symbol || a.symbol) === sym)
                     combined.push({
                         currency: sym,
-                        name: w.Asset?.Name || w.Asset?.name || sym,
-                        precision: w.Asset?.Precision !== undefined ? w.Asset.Precision : 8,
+                        name: matchedAsset?.Name || matchedAsset?.name || w.Asset?.Name || w.Asset?.name || sym,
+                        precision: matchedAsset?.Precision !== undefined ? matchedAsset.Precision : (w.Asset?.Precision !== undefined ? w.Asset.Precision : 8),
                         balance: w.Balance !== undefined ? w.Balance : (w.balance || 0),
                         reserved_balance: w.Locked !== undefined ? w.Locked : (w.locked || 0),
                         isCrypto: true,
@@ -151,8 +128,8 @@ export default function WalletPage() {
     const handleCreateCryptoWallet = async (symbol) => {
         try {
             setCreatingSymbol(symbol)
-            await cryptoWalletAPI.createWallet({ symbol })
-            toast.success(`${symbol} wallet created successfully!`)
+            const res = await cryptoWalletAPI.createWallet({ symbol })
+            toast.success(res?.message || `${symbol} wallet created successfully!`)
             setShowAddCryptoModal(false)
             loadData()
         } catch (err) {
@@ -165,7 +142,9 @@ export default function WalletPage() {
     const hasPin = Boolean(walletInfo?.PinHash || walletInfo?.pin_hash)
 
     // Filter active assets that user doesn't already have a wallet for
-    const existingSymbols = new Set(cryptoWalletsRaw.map(w => w.Asset?.Symbol || w.Asset?.symbol))
+    const existingSymbols = new Set(
+        cryptoWalletsRaw.map(w => w.Asset?.Symbol || w.Asset?.symbol || w.Symbol || w.symbol || '').filter(Boolean)
+    )
     const availableNewAssets = allAssets.filter(a => !existingSymbols.has(a.Symbol || a.symbol))
 
     const formatCryptoVal = (balance, precision) => {
@@ -257,56 +236,71 @@ export default function WalletPage() {
                 )}
             </div>
 
-            {/* Valuation Overview Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Net Worth */}
-                <div className="bg-gradient-to-br from-brand-surface via-brand-panel to-brand-surface border border-brand-border rounded-2xl p-6 shadow-panel relative overflow-hidden group hover:border-brand-gold/40 transition-all">
-                    <div className="absolute -right-12 -bottom-12 w-36 h-36 bg-brand-gold/10 rounded-full blur-3xl pointer-events-none group-hover:bg-brand-gold/20 transition-all animate-pulse-gold"></div>
-                    <p className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] mb-2">TOTAL NET WORTH</p>
-                    <p className="font-mono text-3xl font-extrabold text-white tracking-tight mb-1">
-                        {formatINR(totalNetWorthINR)}
-                    </p>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-brand-gold font-bold uppercase tracking-wider">Combined Fiat & Crypto Assets</span>
+            {/* Valuation Overview Summary Cards (Strictly Domain-Isolated) */}
+            {activeTab === 'cash' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Cash Balance */}
+                    <div className="bg-gradient-to-br from-brand-surface via-brand-panel to-brand-surface border border-brand-red/30 rounded-2xl p-6 shadow-panel relative overflow-hidden group hover:border-brand-red/50 transition-all">
+                        <div className="absolute -right-12 -bottom-12 w-36 h-36 bg-brand-red/10 rounded-full blur-3xl pointer-events-none group-hover:bg-brand-red/20 transition-all animate-pulse-red"></div>
+                        <p className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] mb-2">CASH WALLET BALANCE (INR)</p>
+                        <p className="font-mono text-3xl font-extrabold text-white tracking-tight mb-1">
+                            {formatINR(totalCashINR)}
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-brand-red font-bold uppercase tracking-wider">Available for withdrawals and trading</span>
+                        </div>
+                    </div>
+
+                    {/* Security PIN Status Card */}
+                    <div className="bg-gradient-to-br from-brand-surface via-brand-panel to-brand-surface border border-brand-border rounded-2xl p-6 shadow-panel relative overflow-hidden group hover:border-brand-red/30 transition-all">
+                        <p className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] mb-2">SECURITY STATUS</p>
+                        <p className="text-xl font-extrabold text-white tracking-tight mb-3 font-display uppercase">
+                            {hasPin ? '🔒 Secured by Transaction PIN' : '⚠️ Transaction PIN Not Set'}
+                        </p>
+                        <p className="text-xs text-muted max-w-sm font-medium">
+                            {hasPin 
+                                ? 'Your withdrawals and pin modifications are fully protected by your secure 6-digit PIN.' 
+                                : 'Please configure a secure transaction PIN immediately to enable withdrawals.'
+                            }
+                        </p>
                     </div>
                 </div>
-
-                {/* Cash Balance */}
-                <div className="bg-gradient-to-br from-brand-surface via-brand-panel to-brand-surface border border-brand-border rounded-2xl p-6 shadow-panel relative overflow-hidden group hover:border-brand-red/40 transition-all">
-                    <div className="absolute -right-12 -bottom-12 w-36 h-36 bg-brand-red/10 rounded-full blur-3xl pointer-events-none group-hover:bg-brand-red/20 transition-all animate-pulse-red"></div>
-                    <p className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] mb-2">CASH WALLET (INR)</p>
-                    <p className="font-mono text-3xl font-extrabold text-white tracking-tight mb-1">
-                        {formatINR(totalCashINR)}
-                    </p>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-brand-red font-bold uppercase tracking-wider">Available for instant trading</span>
-                    </div>
-                </div>
-
-                {/* Crypto Valuation & PnL */}
-                <div className="bg-gradient-to-br from-brand-surface via-brand-panel to-brand-surface border border-brand-border rounded-2xl p-6 shadow-panel relative overflow-hidden group hover:border-brand-gold/40 transition-all">
-                    <div className="absolute -right-12 -bottom-12 w-36 h-36 bg-brand-gold/10 rounded-full blur-3xl pointer-events-none group-hover:bg-brand-gold/20 transition-all animate-pulse-gold"></div>
-                    <p className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] mb-2">CRYPTO VALUATION</p>
-                    <div className="flex items-baseline justify-between">
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Crypto Valuation */}
+                    <div className="bg-gradient-to-br from-brand-surface via-brand-panel to-brand-surface border border-brand-gold/30 rounded-2xl p-6 shadow-panel relative overflow-hidden group hover:border-brand-gold/50 transition-all">
+                        <div className="absolute -right-12 -bottom-12 w-36 h-36 bg-brand-gold/10 rounded-full blur-3xl pointer-events-none group-hover:bg-brand-gold/20 transition-all animate-pulse-gold"></div>
+                        <p className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] mb-2">CRYPTO PORTFOLIO VALUATION</p>
                         <p className="font-mono text-3xl font-extrabold text-white tracking-tight mb-1">
                             {formatINR(totalCryptoValueINR)}
                         </p>
-                        <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${totalCryptoPnLINR >= 0 ? 'bg-up/10 text-up border-up/30' : 'bg-down/10 text-down border-down/30'}`}>
-                            {totalCryptoPnLINR >= 0 ? '+' : ''}{formatINR(totalCryptoPnLINR)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-brand-gold font-bold uppercase tracking-wider">Total Value of Crypto Holdings</span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted font-bold tracking-wider">24h Estimated PnL</span>
+
+                    {/* Crypto Valuation & PnL */}
+                    <div className="bg-gradient-to-br from-brand-surface via-brand-panel to-brand-surface border border-brand-border rounded-2xl p-6 shadow-panel relative overflow-hidden group hover:border-brand-gold/40 transition-all">
+                        <div className="absolute -right-12 -bottom-12 w-36 h-36 bg-brand-gold/10 rounded-full blur-3xl pointer-events-none group-hover:bg-brand-gold/20 transition-all animate-pulse-gold"></div>
+                        <p className="text-muted text-[10px] uppercase font-bold tracking-[0.2em] mb-2">24H PORTFOLIO ESTIMATED P&L</p>
+                        <div className="flex items-baseline justify-between">
+                            <p className={`font-mono text-3xl font-extrabold tracking-tight mb-1 ${totalCryptoPnLINR >= 0 ? 'text-up' : 'text-down'}`}>
+                                {totalCryptoPnLINR >= 0 ? '+' : ''}{formatINR(totalCryptoPnLINR)}
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted font-bold tracking-wider">Based on 24h percentage movements of active assets</span>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Section Tab Switcher */}
             <div className="flex border-b border-brand-border gap-8 mb-6">
                 <button
                     onClick={() => navigate('/wallet/cash')}
                     className={`pb-4 font-display tracking-widest text-sm font-bold uppercase border-b-2 transition-all ${
-                        activeTab === 'cash' ? 'border-brand-red text-white font-extrabold shadow-[0_10px_20px_-10px_rgba(229,9,20,0.5)]' : 'border-transparent text-muted hover:text-gray-300'
+                        activeTab === 'cash' ? 'border-brand-red text-white font-extrabold shadow-[0_10px_20px_-10px_rgba(229,9,20,0.5)]' : 'border-transparent text-muted hover:text-white'
                     }`}
                 >
                     💵 CASH WALLET (INR)
@@ -314,7 +308,7 @@ export default function WalletPage() {
                 <button
                     onClick={() => navigate('/wallet/crypto')}
                     className={`pb-4 font-display tracking-widest text-sm font-bold uppercase border-b-2 transition-all ${
-                        activeTab === 'crypto' ? 'border-brand-gold text-white font-extrabold shadow-[0_10px_20px_-10px_rgba(201,168,76,0.5)]' : 'border-transparent text-muted hover:text-gray-300'
+                        activeTab === 'crypto' ? 'border-brand-gold text-white font-extrabold shadow-[0_10px_20px_-10px_rgba(201,168,76,0.5)]' : 'border-transparent text-muted hover:text-white'
                     }`}
                 >
                     🪙 CRYPTO ASSET WALLETS
