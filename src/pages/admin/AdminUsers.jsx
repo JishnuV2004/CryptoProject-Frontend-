@@ -20,7 +20,8 @@ export default function AdminUsers() {
         try {
             const res = await adminAPI.getUsers()
             if (res.success && res.data) {
-                setUsers(res.data)
+                const clientsOnly = res.data.filter(u => (u.Role || u.role) !== 'admin')
+                setUsers(clientsOnly)
             }
         } catch (err) {
             toast.error('Failed to load users')

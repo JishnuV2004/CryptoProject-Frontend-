@@ -14,8 +14,8 @@ export default function SetPinModal({ onClose, onSuccess }) {
 
         try {
             setLoading(true)
-            await walletAPI.setPin({ pin })
-            toast.success('Wallet PIN set successfully')
+            const res = await walletAPI.setPin({ pin })
+            toast.success(res?.message || 'Wallet PIN set successfully')
             if (onSuccess) onSuccess()
             onClose()
         } catch (error) {

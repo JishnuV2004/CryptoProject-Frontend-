@@ -38,19 +38,19 @@ export default function AdminAssets() {
         try {
             setLoading(true)
             if (editingAsset) {
-                await assetAPI.updateAsset(editingAsset.ID || editingAsset.id, {
+                const res = await assetAPI.updateAsset(editingAsset.ID || editingAsset.id, {
                     symbol: form.symbol.toUpperCase(),
                     name: form.name,
                     precision: parseInt(form.precision || 8, 10)
                 })
-                toast.success('Asset updated successfully')
+                toast.success(res?.message || 'Asset updated successfully')
             } else {
-                await assetAPI.createAsset({
+                const res = await assetAPI.createAsset({
                     symbol: form.symbol.toUpperCase(),
                     name: form.name,
                     precision: parseInt(form.precision || 8, 10)
                 })
-                toast.success('Asset created successfully')
+                toast.success(res?.message || 'Asset created successfully')
             }
             setShowModal(false)
             setEditingAsset(null)
@@ -67,8 +67,8 @@ export default function AdminAssets() {
         const newStatus = (asset.Status || asset.status) === 'active' ? 'inactive' : 'active'
         try {
             setLoading(true)
-            await assetAPI.updateStatus(asset.ID || asset.id, { status: newStatus })
-            toast.success(`Asset marked as ${newStatus}`)
+            const res = await assetAPI.updateStatus(asset.ID || asset.id, { status: newStatus })
+            toast.success(res?.message || `Asset marked as ${newStatus}`)
             loadAssets()
         } catch (err) {
             toast.error(err || 'Failed to update status')

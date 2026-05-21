@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatINR, formatDate } from '../../utils/format'
-import { adminAPI, cryptoAdminAPI, assetAPI } from '../../services/api'
+import { adminAPI, cryptoAdminAPI } from '../../services/api'
 import { toast } from 'react-hot-toast'
 
 export default function AdminWallets() {
@@ -24,12 +24,17 @@ export default function AdminWallets() {
         try {
             setLoading(true)
             const usersRes = await adminAPI.getUsers().catch(() => ({ data: [] }))
-            const loadedUsers = usersRes.data || []
+            const loadedUsers = (usersRes.data || []).filter(u => (u.Role || u.role) !== 'admin')
             setUsers(loadedUsers)
 
             if (activeTab === 'crypto') {
                 const cryptoRes = await cryptoAdminAPI.getAllWallets().catch(() => ({ data: [] }))
-                setCryptoWallets(cryptoRes.data || [])
+                const allWallets = cryptoRes.data || []
+                const clientWallets = allWallets.filter(w => {
+                    const userObj = (usersRes.data || []).find(u => (u.ID || u.id) === (w.UserID || w.user_id))
+                    return userObj && (userObj.Role || userObj.role) !== 'admin'
+                })
+                setCryptoWallets(clientWallets)
             }
         } catch (err) {
             toast.error('Failed to load wallet data')
@@ -46,10 +51,11 @@ export default function AdminWallets() {
         try {
             setLoading(true)
             const id = selectedUser.ID || selectedUser.id
-            if (action === 'block') await adminAPI.blockWallet(id)
-            if (action === 'freeze') await adminAPI.freezeWallet(id)
-            if (action === 'unblock') await adminAPI.unblockWallet(id)
-            toast.success(`INR Wallet ${action}ed successfully`)
+            let res;
+            if (action === 'block') res = await adminAPI.blockWallet(id)
+            if (action === 'freeze') res = await adminAPI.freezeWallet(id)
+            if (action === 'unblock') res = await adminAPI.unblockWallet(id)
+            toast.success(res?.message || `INR Wallet ${action}ed successfully`)
             loadData()
         } catch (err) {
             toast.error(err || `Failed to ${action} INR wallet`)
@@ -63,8 +69,8 @@ export default function AdminWallets() {
         if (!actionAmount || parseFloat(actionAmount) <= 0) return toast.error('Enter a valid amount')
         try {
             setLoading(true)
-            await adminAPI.creditWallet(selectedUser.ID || selectedUser.id, { amount: parseFloat(actionAmount) })
-            toast.success('INR funds credited successfully')
+            const res = await adminAPI.creditWallet(selectedUser.ID || selectedUser.id, { amount: Math.round(parseFloat(actionAmount) * 100) })
+            toast.success(res?.message || 'INR funds credited successfully')
             setShowCreditModal(false)
             setActionAmount('')
             loadData()
@@ -81,12 +87,13 @@ export default function AdminWallets() {
         if (!walletTarget) return
         try {
             setLoading(true)
+            let res;
             if (action === 'freeze') {
-                await cryptoAdminAPI.freeze(walletTarget.UserID || walletTarget.user_id)
-                toast.success('User crypto wallets frozen')
+                res = await cryptoAdminAPI.freeze(walletTarget.UserID || walletTarget.user_id)
+                toast.success(res?.message || 'User crypto wallets frozen')
             } else if (action === 'unfreeze') {
-                await cryptoAdminAPI.unfreeze(walletTarget.UserID || walletTarget.user_id)
-                toast.success('User crypto wallets activated')
+                res = await cryptoAdminAPI.unfreeze(walletTarget.UserID || walletTarget.user_id)
+                toast.success(res?.message || 'User crypto wallets activated')
             }
             loadData()
         } catch (err) {
@@ -109,14 +116,15 @@ export default function AdminWallets() {
             const integerAmount = Math.round(parseFloat(actionAmount) * Math.pow(10, precision))
 
             const body = { symbol, amount: integerAmount }
+            let res;
 
             if (isCredit) {
-                await cryptoAdminAPI.credit(userId, body)
-                toast.success(`${symbol} credited successfully`)
+                res = await cryptoAdminAPI.credit(userId, body)
+                toast.success(res?.message || `${symbol} credited successfully`)
                 setShowCreditModal(false)
             } else {
-                await cryptoAdminAPI.debit(userId, body)
-                toast.success(`${symbol} debited successfully`)
+                res = await cryptoAdminAPI.debit(userId, body)
+                toast.success(res?.message || `${symbol} debited successfully`)
                 setShowDebitModal(false)
             }
             setActionAmount('')
@@ -137,7 +145,7 @@ export default function AdminWallets() {
         <div className="space-y-8 animate-fade-up">
             <div className="flex flex-wrap justify-between items-end gap-4">
                 <div>
-                    <h2 className="font-display text-4xl text-white tracking-[0.2em] mb-1">USER WALLETS</h2>
+                    <h2 className="font-display text-4xl text-white tracking-[0.2em] mb-1 font-bold">USER WALLETS</h2>
                     <p className="text-muted text-[10px] uppercase font-bold tracking-[0.3em]">Financial Oversight & Asset Management</p>
                 </div>
                 {/* Mode Switcher */}
@@ -145,7 +153,7 @@ export default function AdminWallets() {
                     <button
                         onClick={() => { setActiveTab('inr'); setSelectedUser(null); }}
                         className={`px-6 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
-                            activeTab === 'inr' ? 'bg-gold-gradient text-brand-bg shadow-gold-sm' : 'text-muted hover:text-white'
+                            activeTab === 'inr' ? 'bg-gold-gradient text-brand-bg shadow-gold-sm font-extrabold' : 'text-muted hover:text-white'
                         }`}
                     >
                         INR Wallets
@@ -153,7 +161,7 @@ export default function AdminWallets() {
                     <button
                         onClick={() => { setActiveTab('crypto'); setSelectedCryptoWallet(null); }}
                         className={`px-6 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
-                            activeTab === 'crypto' ? 'bg-gold-gradient text-brand-bg shadow-gold-sm' : 'text-muted hover:text-white'
+                            activeTab === 'crypto' ? 'bg-gold-gradient text-brand-bg shadow-gold-sm font-extrabold' : 'text-muted hover:text-white'
                         }`}
                     >
                         Crypto Wallets
@@ -174,7 +182,7 @@ export default function AdminWallets() {
                                 <button
                                     key={u.ID || u.id}
                                     onClick={() => setSelectedUser(u)}
-                                    className={`w-full text-left px-6 py-4 transition-colors hover:bg-brand-panel/40 ${(selectedUser?.ID || selectedUser?.id) === (u.ID || u.id) ? 'bg-brand-panel/60 border-l-2 border-brand-gold' : ''}`}
+                                    className={`w-full text-left px-6 py-4 transition-colors hover:bg-brand-panel/40 ${(selectedUser?.ID || selectedUser?.id) === (u.ID || u.id) ? 'bg-brand-panel/60 border-l-2 border-brand-gold font-bold' : ''}`}
                                 >
                                     <div className="flex justify-between items-center">
                                         <div>
@@ -285,7 +293,7 @@ export default function AdminWallets() {
                                             <tr key={w.ID || w.id} className="hover:bg-brand-panel/40 transition-colors">
                                                 <td className="px-6 py-4">
                                                     <div>
-                                                        <p className="text-white font-bold text-xs font-body tracking-wider">{userObj.Name || userObj.full_name || `User ID #${w.UserID || w.user_id}`}</p>
+                                                        <p className="text-white font-bold text-xs uppercase tracking-wider">{userObj.Name || userObj.full_name || `User ID #${w.UserID || w.user_id}`}</p>
                                                         <p className="text-muted text-[10px] lowercase tracking-normal font-mono">{userObj.Email || userObj.email || 'No email'}</p>
                                                     </div>
                                                 </td>
@@ -313,27 +321,27 @@ export default function AdminWallets() {
                                                 <td className="px-6 py-4 text-right space-x-2">
                                                     <button
                                                         onClick={() => { setSelectedCryptoWallet(w); setActionAmount(''); setShowCreditModal(true); }}
-                                                        className="px-2.5 py-1 bg-up/10 border border-up/30 text-up rounded hover:bg-up text-[10px] hover:text-brand-bg transition-all font-body font-bold"
+                                                        className="px-2.5 py-1 bg-up/10 border border-up/30 text-up rounded hover:bg-up text-[10px] hover:text-brand-bg transition-all font-bold"
                                                     >
                                                         Credit
                                                     </button>
                                                     <button
                                                         onClick={() => { setSelectedCryptoWallet(w); setActionAmount(''); setShowDebitModal(true); }}
-                                                        className="px-2.5 py-1 bg-down/10 border border-down/30 text-down rounded hover:bg-down text-[10px] hover:text-brand-bg transition-all font-body font-bold"
+                                                        className="px-2.5 py-1 bg-down/10 border border-down/30 text-down rounded hover:bg-down text-[10px] hover:text-brand-bg transition-all font-bold"
                                                     >
                                                         Debit
                                                     </button>
                                                     {status === 'active' ? (
                                                         <button
                                                             onClick={() => handleCryptoAction('freeze', w)}
-                                                            className="px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 rounded hover:bg-yellow-500 text-[10px] hover:text-brand-bg transition-all font-body font-bold"
+                                                            className="px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 rounded hover:bg-yellow-500 text-[10px] hover:text-brand-bg transition-all font-bold"
                                                         >
                                                             Freeze
                                                         </button>
                                                     ) : (
                                                         <button
                                                             onClick={() => handleCryptoAction('unfreeze', w)}
-                                                            className="px-2.5 py-1 bg-brand-gold/10 border border-brand-gold/30 text-brand-gold rounded hover:bg-brand-gold text-[10px] hover:text-brand-bg transition-all font-body font-bold"
+                                                            className="px-2.5 py-1 bg-brand-gold/10 border border-brand-gold/30 text-brand-gold rounded hover:bg-brand-gold text-[10px] hover:text-brand-bg transition-all font-bold"
                                                         >
                                                             Unfreeze
                                                         </button>
@@ -358,7 +366,7 @@ export default function AdminWallets() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-brand-surface border border-brand-border rounded-2xl w-full max-w-sm overflow-hidden shadow-panel">
                         <div className="p-6 border-b border-brand-border flex justify-between items-center">
-                            <h3 className="font-display text-xl text-white tracking-widest uppercase">Credit INR Funds</h3>
+                            <h3 className="font-display text-xl text-white tracking-widest uppercase font-bold">Credit INR Funds</h3>
                             <button onClick={() => setShowCreditModal(false)} className="text-muted hover:text-white transition-colors">✕</button>
                         </div>
                         <form onSubmit={handleInrCredit} className="p-6 space-y-4">
@@ -390,7 +398,7 @@ export default function AdminWallets() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-brand-surface border border-brand-border rounded-2xl w-full max-w-sm overflow-hidden shadow-panel">
                         <div className="p-6 border-b border-brand-border flex justify-between items-center">
-                            <h3 className="font-display text-xl text-white tracking-widest uppercase">
+                            <h3 className="font-display text-xl text-white tracking-widest uppercase font-bold">
                                 {showCreditModal ? 'Credit' : 'Debit'} {selectedCryptoWallet.Asset?.Symbol || selectedCryptoWallet.Asset?.symbol}
                             </h3>
                             <button onClick={() => { setShowCreditModal(false); setShowDebitModal(false); }} className="text-muted hover:text-white transition-colors">✕</button>
@@ -408,14 +416,14 @@ export default function AdminWallets() {
                                     required
                                 />
                                 <p className="text-[9px] text-muted font-mono tracking-wider">
-                                    Current Balance: {formatCryptoVal(selectedCryptoWallet.Balance || selectedCryptoWallet.balance, selectedCryptoWallet.Asset?.Precision)} {selectedCryptoWallet.Asset?.Symbol}
+                                    Current Balance: {formatCryptoVal(selectedCryptoWallet.Balance || selectedCryptoWallet.balance, selectedCryptoWallet.Asset?.Precision)} {selectedCryptoWallet.Asset?.Symbol || selectedCryptoWallet.Asset?.symbol}
                                 </p>
                             </div>
                             <button
                                 type="submit"
                                 disabled={loading || !actionAmount}
                                 className={`w-full py-3 rounded-xl text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 ${
-                                    showCreditModal ? 'bg-up text-brand-bg' : 'bg-down text-white'
+                                    showCreditModal ? 'bg-up text-brand-bg font-extrabold' : 'bg-down text-white font-extrabold'
                                 }`}
                             >
                                 {loading ? 'Processing...' : `Confirm ${showCreditModal ? 'Credit' : 'Debit'}`}
