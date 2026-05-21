@@ -23,12 +23,12 @@ export default function DepositModal({ onClose, onSuccess }) {
                 handler: async (response) => {
                     toast.loading('Verifying payment...', { id: 'verify' })
                     try {
-                        await walletAPI.verifyDeposit({
+                        const verifyRes = await walletAPI.verifyDeposit({
                             razorpay_payment_id: response.razorpay_payment_id,
                             razorpay_order_id: response.razorpay_order_id,
                             razorpay_signature: response.razorpay_signature
                         })
-                        toast.success('Payment received and verified!', { id: 'verify' })
+                        toast.success(verifyRes?.message || 'Payment received and verified!', { id: 'verify' })
                         if (onSuccess) onSuccess()
                         onClose()
                     } catch (err) {

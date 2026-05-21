@@ -50,7 +50,8 @@ export default function RegisterPage() {
             const payload = {
                 name: form.full_name,
                 email: form.email,
-                password: form.password
+                password: form.password,
+                conformpassword: form.confirm_password
             }
             const res = await authAPI.register(payload)
             
@@ -58,8 +59,17 @@ export default function RegisterPage() {
                 throw new Error(res.message || 'Registration failed')
             }
             
-            if (res && res.data) {
-                setAuth(res.data.user, res.data.token)
+            // Auto-login to obtain backend HTTPOnly cookies and active session state
+            try {
+                const loginRes = await authAPI.login({
+                    email: form.email,
+                    password: form.password
+                })
+                if (loginRes.success && loginRes.data) {
+                    setAuth(loginRes.data, 'session-active')
+                }
+            } catch (loginErr) {
+                console.error('Auto-login failed:', loginErr)
             }
             
             navigate('/kyc')
